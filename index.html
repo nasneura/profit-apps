@@ -1190,7 +1190,7 @@ function MainPanel(){
     }
     if(state.activeTab === 'cashflow'){
       const cfItems = filteredItems.filter(i=>i.statement_type==='cashflow');
-      main.appendChild(state.viewMode === 'grid' ? MatrixGridView(state.lineItems.filter(i=>i.statement_type==='cashflow'), 'cashflow') : StatementTable(cfItems, 'cashflow'));
+      main.appendChild(state.viewMode === 'grid' ? MatrixGridView(state.lineItems.filter(i=>i.statement_type==='cashflow'), 'cashflow', project) : StatementTable(cfItems, 'cashflow'));
     }
     if(state.activeTab === 'forecast') main.appendChild(ForecastView(project));
     if(state.activeTab === 'budget') main.appendChild(BudgetView(project));
@@ -1384,7 +1384,7 @@ function buildMonthColumns(items){
   return [...set].sort();
 }
 
-function MatrixGridView(items, type){
+function MatrixGridView(items, type, project){
   const wrap = el(`<div></div>`);
   const months = buildMonthColumns(items);
   if(months.length === 0){
@@ -1459,7 +1459,21 @@ function MatrixGridView(items, type){
   });
 
   const totalRowCells = columns.map(c => `<td class="num ${grandTotalsByCol[c]>=0?'amt-pos':'amt-neg'}">${fmtMoney(grandTotalsByCol[c])}</td>`).join('');
-  bodyHtml += `<tr class="total-row"><td class="cat">Grand total</td>${totalRowCells}<td class="num ${grandTotal>=0?'amt-pos':'amt-neg'}">${fmtMoney(grandTotal)}</td></tr>`;
+  const totalRowLabel = type === 'cashflow' ? 'Net Cash Flow' : 'Grand total';
+  bodyHtml += `<tr class="total-row"><td class="cat">${totalRowLabel}</td>${totalRowCells}<td class="num ${grandTotal>=0?'amt-pos':'amt-neg'}">${fmtMoney(grandTotal)}</td></tr>`;
+
+  if(type === 'cashflow' && project){
+    const openingBalance = Number(project.opening_balance) || 0;
+    let running = openingBalance;
+    const balanceByCol = {};
+    months.forEach(m => {
+      running += (grandTotalsByCol[m] || 0);
+      balanceByCol[m] = running;
+    });
+    if(hasUndated) balanceByCol['__undated__'] = running; // undated items carried forward, not time-anchored
+    const balanceCells = columns.map(c => `<td class="num ${balanceByCol[c]>=0?'amt-pos':'amt-neg'}" style="font-weight:700;">${fmtMoney(balanceByCol[c])}</td>`).join('');
+    bodyHtml += `<tr class="total-row"><td class="cat">Cumulative Cash Balance</td>${balanceCells}<td class="num ${running>=0?'amt-pos':'amt-neg'}" style="font-weight:700;">${fmtMoney(running)}</td></tr>`;
+  }
 
   const card = el(`
     <div class="card" style="overflow-x:auto;">

@@ -598,10 +598,10 @@ function proceedAfterParse(){
     return;
   }
 
-  // Fallback: let user manually pick the header row
-  state.uploadHeaderRowIndex = guessHeaderRow(state.uploadRawRows);
+  // Neither template format matched — guide the person to use the template instead
+  // of silently guessing at an unknown format (safer than auto-detecting arbitrary layouts).
   state.uploadTemplateDetected = false;
-  state.uploadStep = 2;
+  state.uploadStep = 'mismatch';
   render();
 }
 
@@ -2048,6 +2048,33 @@ function UploadModal(){
       if(e.target.files[0]) handleFileSelect(e.target.files[0]);
     });
     modal.querySelector('#up-cancel').addEventListener('click', () => { closeUploadModal(); render(); });
+  }
+
+  if(state.uploadStep === 'mismatch'){
+    modal.style.width = '460px';
+    modal.innerHTML = `
+      <h3 class="modal-title">Format not recognized</h3>
+      <div class="page-sub" style="margin-bottom:14px;">
+        <strong>${state.uploadFile ? state.uploadFile.name : 'This file'}</strong> doesn't match either of PROFIT's upload templates. To keep data consistent, uploads should use one of the standard templates rather than a custom format.
+      </div>
+      <div class="field" style="background:var(--paper-dim); padding:12px 14px; border-radius:6px; font-size:13px; margin-bottom:16px;">
+        <strong>Expected one of:</strong>
+        <ul style="margin:8px 0 0; padding-left:18px; line-height:1.7;">
+          <li>Flat template — headers exactly: <code>Category, Subcategory, Amount</code></li>
+          <li>Monthly template — headers: <code>Type, Category, Jan...Dec, Total</code></li>
+        </ul>
+      </div>
+      <div class="modal-actions" style="justify-content:space-between;">
+        <button type="button" class="btn secondary" id="mm-map-anyway" style="font-size:12px;">Map columns manually anyway</button>
+        <button type="button" class="btn" id="mm-cancel">Got it, I'll re-upload</button>
+      </div>
+    `;
+    modal.querySelector('#mm-cancel').addEventListener('click', () => { closeUploadModal(); render(); });
+    modal.querySelector('#mm-map-anyway').addEventListener('click', () => {
+      state.uploadHeaderRowIndex = guessHeaderRow(state.uploadRawRows);
+      state.uploadStep = 2;
+      render();
+    });
   }
 
   if(state.uploadStep === 2){

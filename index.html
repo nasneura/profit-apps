@@ -1,0 +1,2421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PROFIT — Project Financial Tracking</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --ink:#101A2C;
+    --ink-soft:#16233A;
+    --paper:#F7F5EF;
+    --paper-dim:#EFEBE0;
+    --stripe:#ECECE9;
+    --line:#DCD8CB;
+    --teal:#2F8F86;
+    --teal-soft:#E4F1EF;
+    --rust:#B23B3B;
+    --rust-soft:#F7E4E1;
+    --gold:#B96E17;
+    --gold-soft:#FCEEDA;
+    --green:#4C8C5C;
+    --green-soft:#E3EEE3;
+    --navy-light:#E3E9F1;
+    --grey:#6B6A63;
+    --text:#2B2A26;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--ink);
+    color:var(--text);
+    font-family:'Lexend',sans-serif;
+    min-height:100vh;
+  }
+  .app{ display:flex; min-height:100vh; }
+
+  /* ===== Sidebar ===== */
+  .sidebar{
+    width:260px;
+    flex-shrink:0;
+    background:var(--ink);
+    color:var(--paper);
+    padding:28px 20px;
+    display:flex;
+    flex-direction:column;
+    gap:24px;
+  }
+  .brand{
+    font-family:'Lexend',sans-serif; font-weight:700;
+    font-size:22px;
+    font-weight:700;
+    letter-spacing:0.01em;
+    display:flex;
+    align-items:baseline;
+    gap:8px;
+  }
+  .brand .mark{ color:var(--gold); font-size:26px; }
+  .brand-sub{ font-size:11px; color:#8A8578; letter-spacing:0.08em; text-transform:uppercase; margin-top:2px; }
+
+  .nav-section-label{
+    font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:#726D5F;
+    margin-bottom:8px; margin-top:4px;
+  }
+  .project-list{ display:flex; flex-direction:column; gap:2px; }
+  .project-item{
+    padding:9px 10px; border-radius:4px; cursor:pointer; font-size:14px;
+    color:#C9C4B6; display:flex; justify-content:space-between; align-items:center;
+    border-left:2px solid transparent;
+  }
+  .project-item:hover{ background:rgba(255,255,255,0.05); }
+  .project-item.active{ background:rgba(184,145,43,0.14); color:var(--paper); border-left:2px solid var(--gold); }
+  .project-item.consolidated{ font-weight:600; }
+
+  .btn-new-project{
+    margin-top:6px; font-size:13px; color:var(--gold); background:none; border:1px dashed #5A5548;
+    padding:8px 10px; border-radius:4px; cursor:pointer; text-align:left; font-family:inherit;
+  }
+  .btn-new-project:hover{ border-color:var(--gold); }
+
+  .sidebar-footer{ margin-top:auto; border-top:1px solid #3A423E; padding-top:16px; font-size:12px; color:#8A8578; }
+  .user-row{ display:flex; justify-content:space-between; align-items:center; }
+  .role-badge{
+    font-size:10px; text-transform:uppercase; letter-spacing:0.05em; padding:2px 6px; border-radius:3px;
+    background:var(--gold-soft); color:#7A5E14; font-weight:600;
+  }
+  .role-badge.member{ background:#3A423E; color:#B8B3A5; }
+  .signout{ background:none; border:none; color:#8A8578; cursor:pointer; font-size:12px; text-decoration:underline; padding:0; margin-top:8px; font-family:inherit; }
+
+  /* ===== Main ===== */
+  .main{ flex:1; background:var(--paper); border-radius:18px 0 0 18px; padding:36px 44px; overflow-y:auto; }
+  .main-header{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:28px; }
+  .page-title{ font-family:'Lexend',sans-serif; font-weight:700; font-size:30px; font-weight:600; margin:0; }
+  .page-sub{ color:var(--grey); font-size:14px; margin-top:4px; }
+
+  .tabs{ display:flex; gap:4px; border-bottom:1px solid var(--line); margin-bottom:24px; }
+  .tab{
+    padding:10px 16px; font-size:13px; font-weight:500; color:var(--grey); cursor:pointer;
+    border-bottom:2px solid transparent; margin-bottom:-1px;
+  }
+  .tab.active{ color:var(--ink); border-bottom-color:var(--teal); }
+
+  .btn{
+    font-family:'Lexend',sans-serif; font-size:13px; font-weight:600; padding:9px 16px; border-radius:5px;
+    border:1px solid var(--ink); background:var(--ink); color:var(--paper); cursor:pointer;
+  }
+  .btn:hover{ opacity:0.88; }
+  .btn.secondary{ background:transparent; color:var(--ink); }
+  .btn.small{ padding:6px 11px; font-size:12px; }
+  .btn:disabled{ opacity:0.4; cursor:not-allowed; }
+
+  .card{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:22px 24px; margin-bottom:20px; }
+  .card-title{ font-size:14px; font-weight:600; margin:0 0 14px 0; }
+
+  input[type=text], input[type=email], input[type=password], input[type=number], select, textarea{
+    font-family:'Lexend',sans-serif; font-size:14px; padding:9px 11px; border:1px solid var(--line);
+    border-radius:5px; background:#fff; width:100%; color:var(--text);
+  }
+  label{ font-size:12px; font-weight:600; color:var(--grey); text-transform:uppercase; letter-spacing:0.03em; display:block; margin-bottom:5px; }
+  .field{ margin-bottom:14px; }
+  .field-row{ display:flex; gap:14px; }
+  .field-row > .field{ flex:1; }
+
+  /* Summary stat cards */
+  .stat-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:22px; }
+  .stat-card{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:16px 18px; }
+  .stat-label{ font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--grey); margin-bottom:6px; }
+  .stat-value{ font-family:'Lexend',sans-serif; font-variant-numeric:tabular-nums; font-size:22px; font-weight:600; }
+  .stat-value.pos{ color:var(--teal); }
+  .stat-value.neg{ color:var(--rust); }
+
+  /* Ledger table */
+  table.ledger{ width:100%; border-collapse:collapse; font-size:13.5px; border-radius:8px; overflow:hidden; }
+  table.ledger thead tr{ background:var(--ink); }
+  table.ledger th{
+    text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:#fff;
+    padding:12px 14px; font-weight:700; border-bottom:none;
+  }
+  table.ledger th.num, table.ledger td.num{ text-align:right; }
+  table.ledger td{ padding:12px 14px; border-bottom:1px solid var(--line); font-family:'Lexend',sans-serif; font-variant-numeric:tabular-nums; }
+  table.ledger td.cat{ font-family:'Lexend',sans-serif; font-weight:500; }
+  table.ledger tr.group-row td{ background:var(--navy-light); font-weight:700; font-family:'Lexend',sans-serif; }
+  table.ledger tr.group-row td.num{ font-family:'Lexend',sans-serif; font-variant-numeric:tabular-nums; font-weight:700; }
+  table.ledger tr.total-row td{ border-top:2px solid var(--ink); border-bottom:none; font-weight:700; font-family:'Lexend',sans-serif; font-variant-numeric:tabular-nums; padding-top:14px; background:transparent; }
+  table.ledger tr.total-row td.cat{ font-family:'Lexend',sans-serif; }
+  .amt-pos{ color:var(--teal); }
+  .amt-neg{ color:var(--rust); }
+  .grid-cell-input{
+    width:100%; text-align:right; font-family:'Lexend',sans-serif; font-variant-numeric:tabular-nums; font-size:12.5px;
+    border:1px solid transparent; background:transparent; padding:3px 4px; border-radius:3px; color:inherit;
+  }
+  .grid-cell-input:hover{ border-color:var(--line); }
+  .grid-cell-input:focus{ border-color:var(--teal); background:#fff; outline:none; }
+
+  .empty-state{ text-align:center; padding:60px 20px; color:var(--grey); }
+  .empty-state .big{ font-family:'Lexend',sans-serif; font-weight:700; font-size:20px; color:var(--ink); margin-bottom:8px; }
+
+  .upload-list{ display:flex; flex-direction:column; gap:8px; }
+  .upload-row{ display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:var(--paper-dim); border-radius:5px; font-size:13px; }
+  .upload-meta{ color:var(--grey); font-size:12px; }
+  .pill{ font-size:11px; letter-spacing:0.01em; padding:3px 10px; border-radius:999px; font-weight:600; }
+  .pill.pnl{ background:var(--teal-soft); color:var(--teal); }
+  .pill.cashflow{ background:var(--gold-soft); color:#7A5E14; }
+  .pill.forecast{ background:#EDE4F5; color:#6B4A94; font-size:9px; padding:1px 6px; }
+
+  .mapping-row{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; align-items:end; padding:10px 0; border-bottom:1px solid var(--paper-dim); }
+  .mapping-preview{ font-size:12px; color:var(--grey); font-family:'Lexend',sans-serif; font-variant-numeric:tabular-nums; }
+
+  .auth-wrap{ min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--ink); }
+  .auth-card{ background:var(--paper); border-radius:12px; padding:40px 36px; width:380px; }
+  .auth-title{ font-family:'Lexend',sans-serif; font-weight:700; font-size:26px; margin:0 0 4px 0; }
+  .auth-sub{ color:var(--grey); font-size:13px; margin-bottom:24px; }
+  .auth-toggle{ font-size:13px; color:var(--teal); cursor:pointer; margin-top:14px; text-align:center; }
+  .error-msg{ background:var(--rust-soft); color:var(--rust); padding:9px 12px; border-radius:5px; font-size:12.5px; margin-bottom:14px; }
+  .pw-field{ position:relative; }
+  .pw-field input{ padding-right:38px; }
+  .pw-toggle{
+    position:absolute; right:1px; top:1px; bottom:1px; width:36px;
+    background:none; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    color:var(--grey); padding:0;
+  }
+  .pw-toggle:hover{ color:var(--ink); }
+  .pw-toggle svg{ width:18px; height:18px; }
+  .info-msg{ background:var(--teal-soft); color:var(--teal); padding:9px 12px; border-radius:5px; font-size:12.5px; margin-bottom:14px; }
+
+  .modal-overlay{ position:fixed; inset:0; background:rgba(28,35,33,0.55); display:flex; align-items:center; justify-content:center; z-index:50; }
+  .modal{ background:#fff; border-radius:10px; padding:26px 28px; width:420px; max-height:85vh; overflow-y:auto; }
+  .modal-title{ font-family:'Lexend',sans-serif; font-weight:700; font-size:19px; margin:0 0 16px 0; }
+  .modal-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:18px; }
+
+  .file-drop{ border:1.5px dashed var(--line); border-radius:7px; padding:26px; text-align:center; color:var(--grey); font-size:13px; cursor:pointer; }
+  .file-drop:hover{ border-color:var(--teal); }
+  .file-drop.has-file{ border-color:var(--teal); color:var(--teal); }
+
+  ::-webkit-scrollbar{ width:8px; }
+  ::-webkit-scrollbar-thumb{ background:#4A524E; border-radius:4px; }
+</style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script>
+const SUPABASE_URL = "https://zgewkcvgseonddybfckb.supabase.co";
+const SUPABASE_KEY = "sb_publishable_A489kIupbSJiwmoGfgD6PA_W01ZMXjn";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let state = {
+  session: null,
+  profile: null,
+  projects: [],
+  selectedProjectId: null, // null = not chosen, 'consolidated' = consolidated view
+  activeTab: 'summary',
+  lineItems: [],
+  uploads: [],
+  authMode: 'login',
+  authError: '',
+  authInfo: '',
+  loading: true,
+  showNewProjectModal: false,
+  newProjectDraft: null,
+  showEditProjectModal: false,
+  editProjectData: { id: null, name: '', description: '', opening_balance: 0, client_name: '', location: '', contract_value: 0, sst_percent: 8, deposit_percent: 50, mos_percent: 20, tax_percent: 32 },
+  budgetItems: [],
+  showBudgetItemModal: false,
+  budgetItemModalData: { id: null, category: '', budget_amount: '' },
+  showUploadModal: false,
+  uploadStep: 1,
+  uploadFile: null,
+  uploadRawRows: [],
+  uploadHeaderRowIndex: null,
+  uploadTemplateDetected: false,
+  uploadFileRows: [],
+  uploadFileHeaders: [],
+  uploadStatementType: 'pnl',
+  uploadPeriodLabel: '',
+  uploadExcludeKeywords: 'subtotal, balance, total',
+  uploadMapping: { category: '', subcategory: '', amount: '' },
+  showLineItemModal: false,
+  lineItemModalMode: 'add',
+  lineItemModalType: 'pnl',
+  lineItemModalData: { id: null, category: '', subcategory: '', amount: '', period: '', status: 'actual' },
+  periodFilter: 'all',
+  viewMode: 'grid',
+  confirmDialog: { show: false, title: '', message: '', confirmLabel: 'Confirm', danger: true, onConfirm: null },
+  showQuickFillModal: false,
+  quickFillType: 'pnl',
+  quickFillDraft: null,
+  draftRestoredBanner: false,
+  showResetPasswordModal: false,
+};
+
+function render(){ App(); }
+
+// ===== Draft auto-save (survives accidental page reloads, e.g. mobile tab discard) =====
+function saveDraft(key, data){
+  try { localStorage.setItem(key, JSON.stringify({ data, savedAt: Date.now() })); } catch(e){ /* storage unavailable — ignore */ }
+}
+function loadDraft(key){
+  try {
+    const raw = localStorage.getItem(key);
+    if(!raw) return null;
+    const parsed = JSON.parse(raw);
+    // Ignore stale drafts older than 24h
+    if(Date.now() - parsed.savedAt > 24*60*60*1000){ localStorage.removeItem(key); return null; }
+    return parsed.data;
+  } catch(e){ return null; }
+}
+function clearDraft(key){
+  try { localStorage.removeItem(key); } catch(e){ /* ignore */ }
+}
+
+function askConfirm({ title, message, confirmLabel = 'Confirm', danger = true, onConfirm }){
+  state.confirmDialog = { show: true, title, message, confirmLabel, danger, onConfirm };
+  render();
+}
+
+function closeConfirmDialog(){
+  state.confirmDialog = { show: false, title: '', message: '', confirmLabel: 'Confirm', danger: true, onConfirm: null };
+}
+
+function fmtMoney(n){
+  const v = Number(n) || 0;
+  const abs = Math.abs(v).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  return (v < 0 ? '-RM ' : 'RM ') + abs;
+}
+
+const MONTH_NAMES = ['Jan','Feb','Mac','Apr','Mei','Jun','Jul','Ogo','Sep','Okt','Nov','Dis'];
+
+function fmtPeriod(dateStr){
+  if(!dateStr) return '—';
+  const [y, m] = dateStr.split('-');
+  return `${MONTH_NAMES[parseInt(m,10)-1]} ${y}`;
+}
+
+function getDistinctPeriods(items){
+  const set = new Set();
+  items.forEach(i => { if(i.period) set.add(i.period.slice(0,7)); }); // YYYY-MM
+  return [...set].sort().reverse();
+}
+
+function currentMonthValue(){
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+function sortCategoriesLogically(entries, amountIndex){
+  // Sort by actual sign of the total (money-in first, money-out after),
+  // then by magnitude descending within each group.
+  return entries.sort((a, b) => {
+    const rankA = a[amountIndex] >= 0 ? 0 : 1;
+    const rankB = b[amountIndex] >= 0 ? 0 : 1;
+    if(rankA !== rankB) return rankA - rankB;
+    return Math.abs(b[amountIndex]) - Math.abs(a[amountIndex]);
+  });
+}
+
+async function init(){
+  // Attach the auth listener FIRST, before checking the current session — otherwise
+  // events fired during the initial page load (e.g. PASSWORD_RECOVERY, when the user
+  // arrives via a reset-password email link) can happen before we're listening,
+  // and we'd silently miss them.
+  sb.auth.onAuthStateChange(handleAuthStateChange);
+
+  const { data: { session } } = await sb.auth.getSession();
+  state.session = session;
+  if(session){
+    await loadProfileAndProjects();
+    state.selectedProjectId = 'consolidated';
+    await loadProjectData('consolidated');
+    await restorePendingDrafts();
+  }
+  state.loading = false;
+  render();
+}
+
+async function handleAuthStateChange(event, session){
+    // TOKEN_REFRESHED fires silently whenever the tab regains focus (Supabase refreshes
+    // the auth token). It doesn't represent an actual sign-in/out, so we update the
+    // session reference quietly without triggering a full re-render — otherwise any
+    // in-progress, unsaved form (e.g. Add/Edit line item) would get wiped out.
+    if(event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION'){
+      state.session = session;
+      return;
+    }
+
+    if(event === 'PASSWORD_RECOVERY'){
+      state.session = session;
+      state.showResetPasswordModal = true;
+      render();
+      return;
+    }
+
+    const wasLoggedOut = !state.session;
+    state.session = session;
+    if(session){
+      await loadProfileAndProjects();
+      if(wasLoggedOut){
+        state.selectedProjectId = 'consolidated';
+        await loadProjectData('consolidated');
+      }
+    } else {
+      state.profile = null;
+      state.projects = [];
+      state.selectedProjectId = null;
+    }
+    render();
+}
+
+async function restorePendingDrafts(){
+  const liDraft = loadDraft('profit_draft_lineitem');
+  if(liDraft && liDraft.selectedProjectId){
+    if(liDraft.selectedProjectId !== state.selectedProjectId){
+      state.selectedProjectId = liDraft.selectedProjectId;
+      await loadProjectData(liDraft.selectedProjectId);
+    }
+    state.activeTab = liDraft.type === 'cashflow' ? 'cashflow' : 'pnl';
+    state.viewMode = 'list';
+    state.lineItemModalMode = liDraft.mode;
+    state.lineItemModalType = liDraft.type;
+    state.lineItemModalData = liDraft.data;
+    state.showLineItemModal = true;
+    state.draftRestoredBanner = true;
+    return;
+  }
+  const qfDraft = loadDraft('profit_draft_quickfill');
+  if(qfDraft && qfDraft.selectedProjectId){
+    if(qfDraft.selectedProjectId !== state.selectedProjectId){
+      state.selectedProjectId = qfDraft.selectedProjectId;
+      await loadProjectData(qfDraft.selectedProjectId);
+    }
+    state.activeTab = qfDraft.type === 'cashflow' ? 'cashflow' : 'pnl';
+    state.viewMode = 'list';
+    state.quickFillType = qfDraft.type;
+    state.quickFillDraft = qfDraft.data;
+    state.showQuickFillModal = true;
+    state.draftRestoredBanner = true;
+    return;
+  }
+  const npDraft = loadDraft('profit_draft_newproject');
+  if(npDraft){
+    state.newProjectDraft = npDraft.data;
+    state.showNewProjectModal = true;
+    state.draftRestoredBanner = true;
+    return;
+  }
+  const epDraft = loadDraft('profit_draft_editproject');
+  if(epDraft){
+    state.editProjectData = epDraft.data;
+    state.showEditProjectModal = true;
+    state.draftRestoredBanner = true;
+  }
+}
+
+async function loadProfileAndProjects(){
+  const { data: profile } = await sb.from('profiles').select('*').eq('id', state.session.user.id).single();
+  state.profile = profile;
+  const { data: projects } = await sb.from('projects').select('*').order('created_at', {ascending:true});
+  state.projects = projects || [];
+}
+
+async function loadProjectData(projectId){
+  if(projectId === 'consolidated'){
+    const { data: items } = await sb.from('line_items').select('*, projects(name)');
+    state.lineItems = items || [];
+    state.uploads = [];
+    state.budgetItems = [];
+  } else {
+    const { data: items } = await sb.from('line_items').select('*').eq('project_id', projectId);
+    state.lineItems = items || [];
+    const { data: uploads } = await sb.from('uploads').select('*, profiles(full_name,email)').eq('project_id', projectId).order('uploaded_at', {ascending:false});
+    state.uploads = uploads || [];
+    const { data: budgetItems } = await sb.from('budget_items').select('*').eq('project_id', projectId);
+    state.budgetItems = budgetItems || [];
+  }
+}
+
+async function selectProject(id){
+  state.selectedProjectId = id;
+  state.activeTab = 'summary';
+  state.periodFilter = 'all';
+  await loadProjectData(id);
+  render();
+}
+
+// ===== Auth actions =====
+async function handleAuthSubmit(email, password, fullName){
+  state.authError = '';
+  state.authInfo = '';
+  if(state.authMode === 'signup'){
+    const { data, error } = await sb.auth.signUp({ email, password, options: { data: { full_name: fullName } } });
+    if(error){ state.authError = error.message; render(); return; }
+    if(!data.session){
+      state.authInfo = 'Account created! Please check your email to confirm before logging in.';
+      render();
+      return;
+    }
+  } else {
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if(error){ state.authError = error.message; render(); return; }
+  }
+}
+
+async function handleSignOut(){
+  await sb.auth.signOut();
+  state.selectedProjectId = null;
+  render();
+}
+
+// ===== Project actions =====
+async function createProject(name, description, openingBalance){
+  const { error } = await sb.from('projects').insert({ name, description, opening_balance: parseFloat(openingBalance) || 0, created_by: state.profile.id });
+  if(error){ alert(error.message); return; }
+  clearDraft('profit_draft_newproject');
+  state.newProjectDraft = null;
+  state.draftRestoredBanner = false;
+  state.showNewProjectModal = false;
+  await loadProfileAndProjects();
+  render();
+}
+
+function openEditProject(project){
+  state.editProjectData = {
+    id: project.id,
+    name: project.name,
+    description: project.description || '',
+    opening_balance: project.opening_balance || 0,
+    client_name: project.client_name || '',
+    location: project.location || '',
+    contract_value: project.contract_value || 0,
+    sst_percent: project.sst_percent ?? 8,
+    deposit_percent: project.deposit_percent ?? 50,
+    mos_percent: project.mos_percent ?? 20,
+    tax_percent: project.tax_percent ?? 32,
+  };
+  state.showEditProjectModal = true;
+  render();
+}
+
+async function updateProject(id, fields){
+  const payload = {
+    name: fields.name,
+    description: fields.description,
+    opening_balance: parseFloat(fields.opening_balance) || 0,
+    client_name: fields.client_name || null,
+    location: fields.location || null,
+    contract_value: parseFloat(fields.contract_value) || 0,
+    sst_percent: parseFloat(fields.sst_percent) || 0,
+    deposit_percent: parseFloat(fields.deposit_percent) || 0,
+    mos_percent: parseFloat(fields.mos_percent) || 0,
+    tax_percent: parseFloat(fields.tax_percent) || 0,
+  };
+  const { error } = await sb.from('projects').update(payload).eq('id', id);
+  if(error){ alert(error.message); return; }
+  clearDraft('profit_draft_editproject');
+  state.draftRestoredBanner = false;
+  state.showEditProjectModal = false;
+  await loadProfileAndProjects();
+  render();
+}
+
+
+// ===== Upload / file parsing =====
+function handleFileSelect(file){
+  state.uploadFile = file;
+  const ext = file.name.split('.').pop().toLowerCase();
+  if(ext === 'csv'){
+    Papa.parse(file, {
+      header:false, skipEmptyLines:'greedy',
+      complete: (res) => {
+        state.uploadRawRows = res.data;
+        proceedAfterParse();
+      }
+    });
+  } else {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const wb = XLSX.read(e.target.result, {type:'array'});
+      const sheetName = pickBestSheet(wb);
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {header:1, defval:'', blankrows:false});
+      state.uploadRawRows = rows;
+      proceedAfterParse();
+    };
+    reader.readAsArrayBuffer(file);
+  }
+}
+
+function pickBestSheet(wb){
+  // Prefer a sheet matching the current statement type tab name (e.g. "PnL" or "Cashflow")
+  const wanted = state.uploadStatementType === 'pnl' ? 'pnl' : 'cashflow';
+  const match = wb.SheetNames.find(n => n.toLowerCase().replace(/[^a-z]/g,'') === wanted);
+  return match || wb.SheetNames[0];
+}
+
+function looksLikeInstructionsSheet(rows){
+  const sample = rows.slice(0, 3).map(r => String(r[0] || '').toLowerCase()).join(' ');
+  return sample.includes('cara guna template');
+}
+
+function proceedAfterParse(){
+  const rows = state.uploadRawRows;
+
+  // Check matrix/monthly template first (Type | Category | ...months... | Total)
+  const matrixIdx = rows.slice(0, 10).findIndex(row => isMatrixTemplateFormat(row));
+  if(matrixIdx !== -1){
+    const dataRows = rows.slice(matrixIdx + 1).filter(row => row.some(c => c !== undefined && String(c).trim() !== ''));
+    state.uploadFileHeaders = ['Category','Subcategory','Amount'];
+    state.uploadFileRows = transformMatrixRows(dataRows);
+    state.uploadMapping = { category: 'Category', subcategory: 'Subcategory', amount: 'Amount' };
+    state.uploadTemplateDetected = true;
+    state.uploadStep = 3;
+    render();
+    return;
+  }
+
+  // Check flat template (Category | Subcategory | Amount)
+  const templateRowIdx = rows.slice(0, 10).findIndex(row => isTemplateFormat(row));
+  if(templateRowIdx !== -1){
+    state.uploadHeaderRowIndex = templateRowIdx;
+    buildHeadersAndRows();
+    state.uploadMapping = { category: state.uploadFileHeaders[0], subcategory: state.uploadFileHeaders[1], amount: state.uploadFileHeaders[2] };
+    state.uploadTemplateDetected = true;
+    state.uploadStep = 3;
+    render();
+    return;
+  }
+
+  // Neither template format matched — check if this is clearly the instructions tab
+  if(looksLikeInstructionsSheet(rows)){
+    alert('The file/tab being read looks like the "Cara Guna" (instructions) tab, not the PnL or Cashflow tab.\n\nPlease make sure:\n1. You upload the FULL .xlsx file (not a single-tab CSV)\n2. The selected "Statement type" (PnL/Cashflow) matches the tab that has data\n\nTry selecting the file again.');
+    closeUploadModal();
+    state.showUploadModal = true;
+    render();
+    return;
+  }
+
+  // Fallback: let user manually pick the header row
+  state.uploadHeaderRowIndex = guessHeaderRow(state.uploadRawRows);
+  state.uploadTemplateDetected = false;
+  state.uploadStep = 2;
+  render();
+}
+
+function guessHeaderRow(rows){
+  let bestIdx = 0, bestScore = -1;
+  rows.slice(0, 12).forEach((row, i) => {
+    const nonEmpty = row.filter(c => c !== undefined && String(c).trim() !== '').length;
+    if(nonEmpty > bestScore){ bestScore = nonEmpty; bestIdx = i; }
+  });
+  return bestIdx;
+}
+
+function makeHeadersUnique(rawHeaders){
+  const counts = {};
+  return rawHeaders.map((h, i) => {
+    let name = (h === undefined || h === null || String(h).trim() === '') ? `Column ${i+1}` : String(h).trim();
+    counts[name] = (counts[name] || 0) + 1;
+    if(counts[name] > 1) name = `${name} (${counts[name]})`;
+    return name;
+  });
+}
+
+function buildHeadersAndRows(){
+  const idx = state.uploadHeaderRowIndex;
+  const rawHeaders = state.uploadRawRows[idx] || [];
+  const headers = makeHeadersUnique(rawHeaders);
+  const dataRows = state.uploadRawRows.slice(idx + 1)
+    .filter(row => row.some(cell => cell !== undefined && String(cell).trim() !== ''));
+  state.uploadFileHeaders = headers;
+  state.uploadFileRows = dataRows.map(row => {
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = row[i]);
+    return obj;
+  });
+  autoDetectMapping();
+}
+
+function isTemplateFormat(rawHeaders){
+  const norm = rawHeaders.map(h => String(h || '').trim().toLowerCase());
+  return norm[0] === 'category' && norm[1] === 'subcategory' && norm[2] === 'amount';
+}
+
+function isMatrixTemplateFormat(rawHeaders){
+  const norm = rawHeaders.map(h => String(h || '').trim().toLowerCase());
+  return norm[0] === 'type' && norm[1] === 'category' && norm[norm.length - 1] === 'total';
+}
+
+function transformMatrixRows(dataRows){
+  return dataRows.map(row => {
+    const type = String(row[0] || '').trim();
+    const itemName = String(row[1] || '').trim();
+    const totalRaw = row[row.length - 1];
+    let amount = parseFloat(String(totalRaw).replace(/[^0-9.-]/g,'')) || 0;
+    const t = type.toLowerCase();
+    const isOutflow = /out|cogs|expense|cost|opex/.test(t);
+    const isInflow = /in|revenue|income/.test(t);
+    if(isOutflow && amount > 0) amount = -amount;
+    if(isInflow && amount < 0) amount = Math.abs(amount);
+    // Type (e.g. Cash-In/Cash-Out, Revenue/COGS/Opex) is the top-level Category;
+    // the specific item name becomes the Subcategory beneath it.
+    return { Category: type, Subcategory: itemName, Amount: amount };
+  });
+}
+
+function autoDetectMapping(){
+  const headers = state.uploadFileHeaders;
+  const findMatch = (keywords) => headers.find(h => keywords.some(k => h.toLowerCase().includes(k))) || '';
+  state.uploadMapping.category = findMatch(['activities','category','item','description','account']);
+  state.uploadMapping.subcategory = findMatch(['subcategory','sub-category','detail']);
+  state.uploadMapping.amount = findMatch(['total value','total price','amount','value','total']);
+}
+
+async function confirmUpload(){
+  const { category, subcategory, amount } = state.uploadMapping;
+  if(!category || !amount){ alert('Please map the Category and Amount columns.'); return; }
+
+  const excludeList = state.uploadExcludeKeywords.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
+
+  const { data: uploadRow, error: upErr } = await sb.from('uploads').insert({
+    project_id: state.selectedProjectId,
+    statement_type: state.uploadStatementType,
+    file_name: state.uploadFile.name,
+    period_label: state.uploadPeriodLabel || null,
+    column_mapping: state.uploadMapping,
+    uploaded_by: state.profile.id
+  }).select().single();
+
+  if(upErr){ alert(upErr.message); return; }
+
+  const items = state.uploadFileRows.map(row => ({
+    upload_id: uploadRow.id,
+    project_id: state.selectedProjectId,
+    statement_type: state.uploadStatementType,
+    category: String(row[category] || '').trim(),
+    subcategory: subcategory ? String(row[subcategory] || '').trim() : null,
+    amount: parseFloat(String(row[amount]).replace(/[^0-9.-]/g,'')) || 0
+  })).filter(r => r.category && !excludeList.some(k => r.category.toLowerCase().includes(k)));
+
+  if(items.length === 0){ alert('No rows to import after filtering. Check your mapping or exclude keywords.'); return; }
+
+  const { error: itemErr } = await sb.from('line_items').insert(items);
+  if(itemErr){ alert(itemErr.message); return; }
+
+  closeUploadModal();
+  await loadProjectData(state.selectedProjectId);
+  render();
+}
+
+function closeUploadModal(){
+  state.showUploadModal = false;
+  state.uploadStep = 1;
+  state.uploadFile = null;
+  state.uploadRawRows = [];
+  state.uploadHeaderRowIndex = null;
+  state.uploadTemplateDetected = false;
+  state.uploadFileRows = [];
+  state.uploadFileHeaders = [];
+  state.uploadPeriodLabel = '';
+  state.uploadExcludeKeywords = 'subtotal, balance, total';
+  state.uploadMapping = { category:'', subcategory:'', amount:'' };
+}
+
+function deleteUpload(uploadId, fileName){
+  askConfirm({
+    title: 'Delete upload?',
+    message: `This will permanently delete <strong>${fileName || 'this upload'}</strong> and all line items imported from it. This cannot be undone.`,
+    confirmLabel: 'Delete upload',
+    danger: true,
+    onConfirm: async () => {
+      await sb.from('uploads').delete().eq('id', uploadId);
+      await loadProjectData(state.selectedProjectId);
+      render();
+    }
+  });
+}
+
+// ===== Quick Fill (bulk recurring entry across months) =====
+function openQuickFill(type){
+  state.quickFillType = type;
+  state.showQuickFillModal = true;
+  render();
+}
+
+function closeQuickFillModal(){
+  state.showQuickFillModal = false;
+  render();
+}
+
+async function submitQuickFill(items){
+  if(items.length === 0){
+    alert('Please enter an amount for at least one month.');
+    return;
+  }
+  const { error } = await sb.from('line_items').insert(items);
+  if(error){ alert(error.message); return; }
+  clearDraft('profit_draft_quickfill');
+  state.draftRestoredBanner = false;
+  closeQuickFillModal();
+  await loadProjectData(state.selectedProjectId);
+  render();
+}
+// ===== Budget items CRUD =====
+function openAddBudgetItem(){
+  state.budgetItemModalData = { id: null, category: '', budget_amount: '' };
+  state.showBudgetItemModal = true;
+  render();
+}
+
+function openEditBudgetItem(item){
+  state.budgetItemModalData = { id: item.id, category: item.category, budget_amount: item.budget_amount };
+  state.showBudgetItemModal = true;
+  render();
+}
+
+function closeBudgetItemModal(){
+  state.showBudgetItemModal = false;
+  render();
+}
+
+async function saveBudgetItem(id, category, amount){
+  if(!category || !category.trim() || isNaN(parseFloat(amount))){
+    alert('Please fill in Category and Budget Amount (number).');
+    return;
+  }
+  const payload = { category: category.trim(), budget_amount: parseFloat(amount), updated_at: new Date().toISOString() };
+  if(id){
+    const { error } = await sb.from('budget_items').update(payload).eq('id', id);
+    if(error){ alert(error.message); return; }
+  } else {
+    const { error } = await sb.from('budget_items').insert({ ...payload, project_id: state.selectedProjectId, created_by: state.profile.id });
+    if(error){ alert(error.message); return; }
+  }
+  closeBudgetItemModal();
+  await loadProjectData(state.selectedProjectId);
+  render();
+}
+
+function deleteBudgetItem(id, category){
+  askConfirm({
+    title: 'Delete budget item?',
+    message: `This will permanently delete the budget line for <strong>${category}</strong>.`,
+    confirmLabel: 'Delete item',
+    danger: true,
+    onConfirm: async () => {
+      await sb.from('budget_items').delete().eq('id', id);
+      await loadProjectData(state.selectedProjectId);
+      render();
+    }
+  });
+}
+
+function openAddLineItem(type){
+  state.lineItemModalMode = 'add';
+  state.lineItemModalType = type;
+  state.lineItemModalData = { id: null, category: '', subcategory: '', amount: '', period: currentMonthValue(), status: 'actual' };
+  state.showLineItemModal = true;
+  render();
+}
+
+function openEditLineItem(item){
+  state.lineItemModalMode = 'edit';
+  state.lineItemModalType = item.statement_type;
+  state.lineItemModalData = {
+    id: item.id,
+    category: item.category,
+    subcategory: item.subcategory || '',
+    amount: item.amount,
+    period: item.period ? item.period.slice(0,7) : '',
+    status: item.status || 'actual'
+  };
+  state.showLineItemModal = true;
+  render();
+}
+
+function closeLineItemModal(){
+  state.showLineItemModal = false;
+  state.lineItemModalData = { id: null, category: '', subcategory: '', amount: '', period: '', status: 'actual' };
+}
+
+async function saveLineItem(){
+  const { id, category, subcategory, amount, period, status } = state.lineItemModalData;
+  if(!category || !category.trim() || amount === '' || amount === null || isNaN(parseFloat(amount))){
+    alert('Please fill in Category and Amount (number).');
+    return;
+  }
+  const payload = {
+    category: category.trim(),
+    subcategory: subcategory && subcategory.trim() ? subcategory.trim() : null,
+    amount: parseFloat(amount),
+    period: period ? `${period}-01` : null,
+    status: status === 'forecast' ? 'forecast' : 'actual',
+  };
+  if(id){
+    const { error } = await sb.from('line_items').update(payload).eq('id', id);
+    if(error){ alert(error.message); return; }
+  } else {
+    const { error } = await sb.from('line_items').insert({
+      ...payload,
+      project_id: state.selectedProjectId,
+      statement_type: state.lineItemModalType,
+      created_by: state.profile.id,
+    });
+    if(error){ alert(error.message); return; }
+  }
+  clearDraft('profit_draft_lineitem');
+  state.draftRestoredBanner = false;
+  closeLineItemModal();
+  await loadProjectData(state.selectedProjectId);
+  render();
+}
+
+function deleteLineItem(id, label){
+  askConfirm({
+    title: 'Delete line item?',
+    message: `This will permanently delete <strong>${label || 'this line item'}</strong>. This cannot be undone.`,
+    confirmLabel: 'Delete item',
+    danger: true,
+    onConfirm: async () => {
+      await sb.from('line_items').delete().eq('id', id);
+      await loadProjectData(state.selectedProjectId);
+      render();
+    }
+  });
+}
+
+// ===== Rendering =====
+function el(html){
+  const t = document.createElement('template');
+  t.innerHTML = html.trim();
+  return t.content.firstElementChild;
+}
+
+function App(){
+  const root = document.getElementById('root');
+  root.innerHTML = '';
+
+  if(state.loading){
+    root.appendChild(el(`<div class="auth-wrap"><div style="color:#F7F5F0;font-family:'Lexend',sans-serif; font-weight:700;">Loading…</div></div>`));
+    return;
+  }
+
+  if(!state.session){
+    root.appendChild(AuthScreen());
+    return;
+  }
+
+  if(state.showResetPasswordModal){
+    root.appendChild(ResetPasswordScreen());
+    return;
+  }
+
+  root.appendChild(AppShell());
+}
+
+function ResetPasswordScreen(){
+  const wrap = el(`<div class="auth-wrap"></div>`);
+  const card = el(`
+    <div class="auth-card">
+      <h1 class="auth-title">Set new password</h1>
+      <div class="auth-sub">You're resetting your PROFIT account password.</div>
+      ${state.authError ? `<div class="error-msg">${state.authError}</div>` : ''}
+      <form id="reset-pw-form">
+        <div class="field">
+          <label>New password</label>
+          <div class="pw-field">
+            <input type="password" name="newPassword" id="new-password-input" required minlength="6">
+            <button type="button" class="pw-toggle" id="rpw-toggle" aria-label="Show password">
+              <svg id="rpw-eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              <svg id="rpw-eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.8 21.8 0 0 1 5.06-6.06M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a21.8 21.8 0 0 1-3.22 4.44M14.12 14.12a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+            </button>
+          </div>
+        </div>
+        <button type="submit" class="btn" style="width:100%;margin-top:6px;">Set new password</button>
+      </form>
+    </div>
+  `);
+  wrap.appendChild(card);
+
+  card.querySelector('#rpw-toggle').addEventListener('click', () => {
+    const input = card.querySelector('#new-password-input');
+    const eyeOpen = card.querySelector('#rpw-eye-open');
+    const eyeClosed = card.querySelector('#rpw-eye-closed');
+    const showing = input.type === 'text';
+    input.type = showing ? 'password' : 'text';
+    eyeOpen.style.display = showing ? 'block' : 'none';
+    eyeClosed.style.display = showing ? 'none' : 'block';
+  });
+
+  card.querySelector('#reset-pw-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const { error } = await sb.auth.updateUser({ password: fd.get('newPassword') });
+    if(error){ state.authError = error.message; render(); return; }
+    state.authError = '';
+    state.showResetPasswordModal = false;
+    await loadProfileAndProjects();
+    state.selectedProjectId = 'consolidated';
+    await loadProjectData('consolidated');
+    render();
+  });
+
+  return wrap;
+}
+
+function AuthScreen(){
+  const wrap = el(`<div class="auth-wrap"></div>`);
+  const card = el(`
+    <div class="auth-card">
+      <h1 class="auth-title">PROFIT</h1>
+      <div class="auth-sub">Project Financial Tracking — team login</div>
+      ${state.authError ? `<div class="error-msg">${state.authError}</div>` : ''}
+      ${state.authInfo ? `<div class="info-msg">${state.authInfo}</div>` : ''}
+      <form id="auth-form">
+        ${state.authMode==='signup' ? `<div class="field"><label>Full name</label><input type="text" name="fullName" required></div>` : ''}
+        <div class="field"><label>Email</label><input type="email" name="email" required></div>
+        <div class="field">
+          <label>Password</label>
+          <div class="pw-field">
+            <input type="password" name="password" id="password-input" required minlength="6">
+            <button type="button" class="pw-toggle" id="pw-toggle" aria-label="Show password">
+              <svg id="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              <svg id="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.8 21.8 0 0 1 5.06-6.06M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a21.8 21.8 0 0 1-3.22 4.44M14.12 14.12a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+            </button>
+          </div>
+        </div>
+        <button type="submit" class="btn" style="width:100%;margin-top:6px;">${state.authMode==='signup' ? 'Sign up' : 'Log in'}</button>
+      </form>
+      ${state.authMode==='login' ? `<div class="auth-toggle" id="forgot-password-link" style="margin-top:8px;">Forgot password?</div>` : ''}
+      <div class="auth-toggle" id="auth-toggle">${state.authMode==='signup' ? 'Already have an account? Log in' : 'No account yet? Sign up'}</div>
+    </div>
+  `);
+  wrap.appendChild(card);
+
+  const forgotLink = card.querySelector('#forgot-password-link');
+  if(forgotLink) forgotLink.addEventListener('click', async () => {
+    const email = card.querySelector('input[name="email"]').value.trim();
+    if(!email){ state.authError = 'Please type your email above first, then click "Forgot password?" again.'; render(); return; }
+    const { error } = await sb.auth.resetPasswordForEmail(email);
+    if(error){ state.authError = error.message; render(); return; }
+    state.authError = '';
+    state.authInfo = `Password reset link sent to ${email}. Check your inbox (and spam folder), click the link, then you'll be able to set a new password.`;
+    render();
+  });
+
+  card.querySelector('#auth-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    handleAuthSubmit(fd.get('email'), fd.get('password'), fd.get('fullName'));
+  });
+  card.querySelector('#pw-toggle').addEventListener('click', () => {
+    const input = card.querySelector('#password-input');
+    const eyeOpen = card.querySelector('#eye-open');
+    const eyeClosed = card.querySelector('#eye-closed');
+    const showing = input.type === 'text';
+    input.type = showing ? 'password' : 'text';
+    eyeOpen.style.display = showing ? 'block' : 'none';
+    eyeClosed.style.display = showing ? 'none' : 'block';
+  });
+  card.querySelector('#auth-toggle').addEventListener('click', () => {
+    state.authMode = state.authMode === 'signup' ? 'login' : 'signup';
+    state.authError = '';
+    render();
+  });
+
+  return wrap;
+}
+
+function AppShell(){
+  const wrap = el(`<div class="app"></div>`);
+  wrap.appendChild(Sidebar());
+  wrap.appendChild(MainPanel());
+  if(state.showNewProjectModal) wrap.appendChild(NewProjectModal());
+  if(state.showEditProjectModal) wrap.appendChild(EditProjectModal());
+  if(state.showUploadModal) wrap.appendChild(UploadModal());
+  if(state.showLineItemModal) wrap.appendChild(LineItemModal());
+  if(state.showQuickFillModal) wrap.appendChild(QuickFillModal());
+  if(state.showBudgetItemModal) wrap.appendChild(BudgetItemModal());
+  if(state.confirmDialog.show) wrap.appendChild(ConfirmDialogModal());
+  return wrap;
+}
+
+function ConfirmDialogModal(){
+  const d = state.confirmDialog;
+  const overlay = el(`
+    <div class="modal-overlay" style="z-index:100;">
+      <div class="modal" style="width:380px;">
+        <h3 class="modal-title">${d.title}</h3>
+        <div style="font-size:14px;color:var(--text);line-height:1.5;">${d.message}</div>
+        <div class="modal-actions">
+          <button type="button" class="btn secondary" id="confirm-cancel">Cancel</button>
+          <button type="button" class="btn" id="confirm-ok" style="${d.danger ? 'background:var(--rust);border-color:var(--rust);' : ''}">${d.confirmLabel}</button>
+        </div>
+      </div>
+    </div>
+  `);
+  overlay.querySelector('#confirm-cancel').addEventListener('click', () => { closeConfirmDialog(); render(); });
+  overlay.querySelector('#confirm-ok').addEventListener('click', () => {
+    const action = state.confirmDialog.onConfirm;
+    closeConfirmDialog();
+    if(action) action();
+  });
+  return overlay;
+}
+
+function Sidebar(){
+  const isAdmin = state.profile && state.profile.role === 'admin';
+  const sb_ = el(`
+    <div class="sidebar">
+      <div>
+        <div class="brand"><span class="mark">§</span>PROFIT</div>
+        <div class="brand-sub">Project Financial Tracking</div>
+      </div>
+      <div>
+        <div class="nav-section-label">Overview</div>
+        <div class="project-list">
+          <div class="project-item consolidated ${state.selectedProjectId==='consolidated'?'active':''}" data-id="consolidated">◈ Consolidated</div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-section-label">Projects</div>
+        <div class="project-list">
+          ${state.projects.map(p => `<div class="project-item ${state.selectedProjectId===p.id?'active':''}" data-id="${p.id}">${p.name}</div>`).join('')}
+        </div>
+        ${isAdmin ? `<button class="btn-new-project" id="new-project-btn">+ New project</button>` : ''}
+      </div>
+      <div class="sidebar-footer">
+        <div class="user-row">
+          <span>${state.profile ? (state.profile.full_name || state.profile.email) : ''}</span>
+          <span class="role-badge ${isAdmin?'':'member'}">${state.profile ? state.profile.role : ''}</span>
+        </div>
+        <button class="signout" id="signout-btn">Sign out</button>
+      </div>
+    </div>
+  `);
+  sb_.querySelectorAll('.project-item').forEach(item => {
+    item.addEventListener('click', () => selectProject(item.dataset.id));
+  });
+  const npBtn = sb_.querySelector('#new-project-btn');
+  if(npBtn) npBtn.addEventListener('click', () => { state.showNewProjectModal = true; render(); });
+  sb_.querySelector('#signout-btn').addEventListener('click', handleSignOut);
+  return sb_;
+}
+
+function MainPanel(){
+  const main = el(`<div class="main"></div>`);
+
+  if(!state.selectedProjectId){
+    main.appendChild(el(`
+      <div class="empty-state" style="margin-top:80px;">
+        <div class="big">Select a project or view Consolidated</div>
+        <div>Use the sidebar on the left to get started.</div>
+      </div>
+    `));
+    return main;
+  }
+
+  const isConsolidated = state.selectedProjectId === 'consolidated';
+  const project = isConsolidated ? null : state.projects.find(p => p.id === state.selectedProjectId);
+  const isAdmin = state.profile && state.profile.role === 'admin';
+
+  const header = el(`
+    <div class="main-header">
+      <div>
+        <h1 class="page-title">
+          ${isConsolidated ? 'Consolidated' : project.name}
+          ${(!isConsolidated && isAdmin) ? `<button id="edit-project-btn" style="background:none;border:none;cursor:pointer;color:var(--grey);font-size:15px;vertical-align:middle;margin-left:6px;" title="Edit project">✎</button>` : ''}
+        </h1>
+        <div class="page-sub">${isConsolidated ? 'All projects — PnL & Cashflow combined' : (project.description || 'Project PnL & Cashflow')}</div>
+      </div>
+      ${!isConsolidated ? `<button class="btn" id="upload-btn">+ Upload data</button>` : ''}
+    </div>
+  `);
+  if(!isConsolidated){
+    header.querySelector('#upload-btn').addEventListener('click', () => { state.showUploadModal = true; render(); });
+    const editBtn = header.querySelector('#edit-project-btn');
+    if(editBtn) editBtn.addEventListener('click', () => openEditProject(project));
+  }
+  main.appendChild(header);
+
+  if(!isConsolidated){
+    const periods = getDistinctPeriods(state.lineItems);
+    const showViewToggle = state.activeTab === 'pnl' || state.activeTab === 'cashflow';
+    const tabs = el(`
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0; flex-wrap:wrap; gap:8px;">
+        <div class="tabs" style="flex:1;">
+          <div class="tab ${state.activeTab==='summary'?'active':''}" data-tab="summary">Executive Summary</div>
+          <div class="tab ${state.activeTab==='pnl'?'active':''}" data-tab="pnl">PnL</div>
+          <div class="tab ${state.activeTab==='cashflow'?'active':''}" data-tab="cashflow">Cashflow</div>
+          <div class="tab ${state.activeTab==='forecast'?'active':''}" data-tab="forecast">Forecast</div>
+          <div class="tab ${state.activeTab==='budget'?'active':''}" data-tab="budget">Budget</div>
+          <div class="tab ${state.activeTab==='uploads'?'active':''}" data-tab="uploads">Uploads</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+          ${showViewToggle ? `
+            <div style="display:flex; border:1px solid var(--line); border-radius:5px; overflow:hidden;">
+              <button type="button" id="view-list-btn" class="btn small ${state.viewMode==='list'?'':'secondary'}" style="border:none; border-radius:0;">List</button>
+              <button type="button" id="view-grid-btn" class="btn small ${state.viewMode==='grid'?'':'secondary'}" style="border:none; border-radius:0;">Grid</button>
+            </div>
+          ` : ''}
+          ${(state.activeTab!=='uploads' && state.activeTab!=='forecast' && state.activeTab!=='budget' && !(showViewToggle && state.viewMode==='grid') && periods.length>0) ? `
+            <select id="period-filter" style="width:auto;padding:6px 9px;font-size:12.5px;">
+              <option value="all" ${state.periodFilter==='all'?'selected':''}>All months</option>
+              ${periods.map(p => `<option value="${p}" ${state.periodFilter===p?'selected':''}>${fmtPeriod(p+'-01')}</option>`).join('')}
+            </select>
+          ` : ''}
+        </div>
+      </div>
+    `);
+    tabs.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => { state.activeTab = t.dataset.tab; render(); }));
+    const periodSelect = tabs.querySelector('#period-filter');
+    if(periodSelect) periodSelect.addEventListener('change', (e) => { state.periodFilter = e.target.value; render(); });
+    const listBtn = tabs.querySelector('#view-list-btn');
+    const gridBtn = tabs.querySelector('#view-grid-btn');
+    if(listBtn) listBtn.addEventListener('click', () => { state.viewMode = 'list'; render(); });
+    if(gridBtn) gridBtn.addEventListener('click', () => { state.viewMode = 'grid'; render(); });
+    main.appendChild(tabs);
+
+    const filteredItems = state.periodFilter === 'all'
+      ? state.lineItems
+      : state.lineItems.filter(i => i.period && i.period.slice(0,7) === state.periodFilter);
+
+    if(state.activeTab === 'summary') main.appendChild(SummaryView(filteredItems, project));
+    if(state.activeTab === 'pnl'){
+      const pnlItems = filteredItems.filter(i=>i.statement_type==='pnl');
+      main.appendChild(state.viewMode === 'grid' ? MatrixGridView(state.lineItems.filter(i=>i.statement_type==='pnl'), 'pnl') : StatementTable(pnlItems, 'pnl'));
+    }
+    if(state.activeTab === 'cashflow'){
+      const cfItems = filteredItems.filter(i=>i.statement_type==='cashflow');
+      main.appendChild(state.viewMode === 'grid' ? MatrixGridView(state.lineItems.filter(i=>i.statement_type==='cashflow'), 'cashflow') : StatementTable(cfItems, 'cashflow'));
+    }
+    if(state.activeTab === 'forecast') main.appendChild(ForecastView(project));
+    if(state.activeTab === 'budget') main.appendChild(BudgetView(project));
+    if(state.activeTab === 'uploads') main.appendChild(UploadsView());
+  } else {
+    main.appendChild(ConsolidatedView());
+  }
+
+  return main;
+}
+
+function computeTotals(items){
+  const pnl = items.filter(i=>i.statement_type==='pnl').reduce((s,i)=>s+Number(i.amount),0);
+  const cf = items.filter(i=>i.statement_type==='cashflow').reduce((s,i)=>s+Number(i.amount),0);
+  return { pnl, cf };
+}
+
+function SummaryView(items, project){
+  const { pnl, cf } = computeTotals(items);
+  const wrap = el(`<div></div>`);
+  wrap.appendChild(el(`
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">Net PnL</div>
+        <div class="stat-value ${pnl>=0?'pos':'neg'}">${fmtMoney(pnl)}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Net Cashflow</div>
+        <div class="stat-value ${cf>=0?'pos':'neg'}">${fmtMoney(cf)}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Line items</div>
+        <div class="stat-value">${items.length}</div>
+      </div>
+    </div>
+  `));
+
+  // ===== Executive cash flow summary — uses the FULL project timeline (not the period filter) =====
+  const allCashItems = state.lineItems.filter(i => i.statement_type === 'cashflow');
+  if(allCashItems.length > 0){
+    const openingBalance = Number(project.opening_balance) || 0;
+    const totalCashIn = allCashItems.filter(i => Number(i.amount) >= 0).reduce((s,i) => s + Number(i.amount), 0);
+    const totalCashOut = allCashItems.filter(i => Number(i.amount) < 0).reduce((s,i) => s + Number(i.amount), 0);
+    const netPosition = totalCashIn + totalCashOut;
+
+    const dated = allCashItems.filter(i => i.period);
+    const byMonth = {};
+    dated.forEach(i => {
+      const m = i.period.slice(0,7);
+      byMonth[m] = (byMonth[m] || 0) + Number(i.amount);
+    });
+    const months = Object.keys(byMonth).sort();
+    let running = openingBalance;
+    let minBalance = openingBalance;
+    const monthRows = months.map(m => {
+      running += byMonth[m];
+      if(running < minBalance) minBalance = running;
+      return { month: m, net: byMonth[m], balance: running };
+    });
+    const endingBalance = months.length > 0 ? running : openingBalance + netPosition;
+
+    wrap.appendChild(el(`
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-label">Total Cash In</div><div class="stat-value pos">${fmtMoney(totalCashIn)}</div></div>
+        <div class="stat-card"><div class="stat-label">Total Cash Out</div><div class="stat-value neg">${fmtMoney(totalCashOut)}</div></div>
+        <div class="stat-card"><div class="stat-label">Net Cash Position</div><div class="stat-value ${netPosition>=0?'pos':'neg'}">${fmtMoney(netPosition)}</div></div>
+        <div class="stat-card"><div class="stat-label">Min. Balance</div><div class="stat-value ${minBalance>=0?'pos':'neg'}">${fmtMoney(minBalance)}</div></div>
+        <div class="stat-card"><div class="stat-label">Ending Cash Balance</div><div class="stat-value ${endingBalance>=0?'pos':'neg'}">${fmtMoney(endingBalance)}</div></div>
+      </div>
+    `));
+
+    if(monthRows.length > 0){
+      const monthCard = el(`<div class="card"><div class="card-title">Monthly Cash Flow</div></div>`);
+      const table = el(`
+        <table class="ledger">
+          <thead><tr><th>Month</th><th class="num">Net</th><th class="num">Cumulative Balance</th></tr></thead>
+          <tbody>
+            ${monthRows.map(r => `<tr><td class="cat">${fmtPeriod(r.month+'-01')}</td><td class="num ${r.net>=0?'amt-pos':'amt-neg'}">${fmtMoney(r.net)}</td><td class="num ${r.balance>=0?'amt-pos':'amt-neg'}" style="font-weight:600;">${fmtMoney(r.balance)}</td></tr>`).join('')}
+          </tbody>
+        </table>
+      `);
+      monthCard.appendChild(table);
+      wrap.appendChild(monthCard);
+    }
+
+    // ===== Auto-generated Key Takeaways =====
+    const takeaways = generateKeyTakeaways({
+      project, totalCashIn, totalCashOut, netPosition, minBalance, endingBalance,
+      openingBalance, monthRows, allCashItems,
+    });
+    if(takeaways.length > 0){
+      const kCard = el(`<div class="card"><div class="card-title">Key Takeaways</div></div>`);
+      const list = el(`<ul style="margin:0; padding-left:18px; font-size:13px; line-height:1.7; color:var(--text);"></ul>`);
+      takeaways.forEach(t => list.appendChild(el(`<li>${t}</li>`)));
+      kCard.appendChild(list);
+      wrap.appendChild(kCard);
+    }
+  }
+
+  if(items.length === 0){
+    wrap.appendChild(el(`<div class="empty-state"><div class="big">No data yet</div><div>Upload a CSV/Excel file to get started.</div></div>`));
+  } else {
+    const c1 = CategoryBreakdown(items.filter(i=>i.statement_type==='pnl'), 'PnL — by category');
+    const c2 = CategoryBreakdown(items.filter(i=>i.statement_type==='cashflow'), 'Cashflow — by category');
+    wrap.appendChild(c1);
+    wrap.appendChild(c2);
+  }
+  return wrap;
+}
+
+function generateKeyTakeaways({ project, totalCashIn, totalCashOut, netPosition, minBalance, endingBalance, openingBalance, monthRows, allCashItems }){
+  const takeaways = [];
+  takeaways.push(`Total planned cash in for the project: ${fmtMoney(totalCashIn)}, against total planned cash out of ${fmtMoney(Math.abs(totalCashOut))}, for a net cash position of ${fmtMoney(netPosition)}.`);
+
+  if(minBalance < 0){
+    takeaways.push(`Minimum cash balance is projected to go <strong>negative</strong> (${fmtMoney(minBalance)}) — external cash injection or timing adjustment may be needed.`);
+  } else {
+    takeaways.push(`Minimum cash balance from project start is ${fmtMoney(minBalance)} — the balance never turns negative, so this project is expected to self-fund without external cash injection.`);
+  }
+
+  // Largest single outflow category
+  const outflowByCategory = {};
+  allCashItems.filter(i => Number(i.amount) < 0).forEach(i => {
+    outflowByCategory[i.category] = (outflowByCategory[i.category] || 0) + Math.abs(Number(i.amount));
+  });
+  const sortedOutflows = Object.entries(outflowByCategory).sort((a,b) => b[1]-a[1]);
+  if(sortedOutflows.length > 0){
+    const [topCat, topAmt] = sortedOutflows[0];
+    takeaways.push(`The largest single outflow category is <strong>${topCat}</strong> (~${fmtMoney(topAmt)}).`);
+  }
+
+  takeaways.push(`Ending cash balance: ${fmtMoney(endingBalance)}.`);
+
+  // Budget/profitability reference, if budget data exists
+  const budgetItems = state.budgetItems || [];
+  if(budgetItems.length > 0 && Number(project.contract_value) > 0){
+    const cogsTotal = budgetItems.reduce((s,b) => s + Number(b.budget_amount), 0);
+    const totalProjectCost = cogsTotal;
+    const grossProfit = Number(project.contract_value) - totalProjectCost;
+    const taxAmount = grossProfit * (Number(project.tax_percent)||0) / 100;
+    const netProfit = grossProfit - taxAmount;
+    const margin = Number(project.contract_value) > 0 ? (netProfit / Number(project.contract_value) * 100) : 0;
+    takeaways.push(`Against a contract value of ${fmtMoney(project.contract_value)}, projected net profit is ${fmtMoney(netProfit)} (${margin.toFixed(1)}% margin) — see Budget tab for the full breakdown.`);
+  }
+
+  return takeaways;
+}
+
+function CategoryBreakdown(items, title){
+  const catGroups = {};
+  items.forEach(i => {
+    if(!catGroups[i.category]) catGroups[i.category] = {};
+    const subKey = i.subcategory || '—';
+    catGroups[i.category][subKey] = (catGroups[i.category][subKey] || 0) + Number(i.amount);
+  });
+  const catTotals = Object.entries(catGroups).map(([cat, subs]) => [cat, Object.values(subs).reduce((a,b)=>a+b,0), subs]);
+  sortCategoriesLogically(catTotals, 1);
+  const total = catTotals.reduce((s,[,amt])=>s+amt,0);
+
+  const card = el(`<div class="card"><div class="card-title">${title}</div></div>`);
+  if(catTotals.length === 0){
+    card.appendChild(el(`<div style="color:var(--grey);font-size:13px;">No data.</div>`));
+    return card;
+  }
+
+  let rowsHtml = '';
+  catTotals.forEach(([cat, catAmt, subs]) => {
+    const subEntries = Object.entries(subs);
+    rowsHtml += `<tr class="group-row"><td class="cat">${cat}</td><td class="num">${fmtMoney(catAmt)}</td></tr>`;
+    if(subEntries.length > 1 || subEntries[0][0] !== '—'){
+      subEntries.sort((a,b) => b[1]-a[1]).forEach(([sub, amt]) => {
+        rowsHtml += `<tr><td class="cat" style="padding-left:22px;font-size:12.5px;color:var(--grey);">${sub}</td><td class="num ${amt>=0?'amt-pos':'amt-neg'}" style="font-size:12.5px;">${fmtMoney(amt)}</td></tr>`;
+      });
+    }
+  });
+  rowsHtml += `<tr class="total-row"><td class="cat">Total</td><td class="num ${total>=0?'amt-pos':'amt-neg'}">${fmtMoney(total)}</td></tr>`;
+
+  const table = el(`
+    <table class="ledger">
+      <thead><tr><th>Category</th><th class="num">Amount</th></tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+  `);
+  card.appendChild(table);
+  return card;
+}
+
+function buildMonthColumns(items){
+  const set = new Set();
+  items.forEach(i => { if(i.period) set.add(i.period.slice(0,7)); });
+  return [...set].sort();
+}
+
+function MatrixGridView(items, type){
+  const wrap = el(`<div></div>`);
+  const months = buildMonthColumns(items);
+  if(months.length === 0){
+    const empty = el(`
+      <div class="empty-state">
+        <div class="big">No dated items to show in Grid view</div>
+        <div>${items.length > 0 ? `You have ${items.length} item(s), but none have a Month set — Grid view needs a Month to build columns.` : 'Add line items with a Month set to see the grid view.'}</div>
+        ${items.length > 0 ? `<button class="btn small" id="grid-switch-list-btn" style="margin-top:12px;">Switch to List view</button>` : ''}
+      </div>
+    `);
+    const switchBtn = empty.querySelector('#grid-switch-list-btn');
+    if(switchBtn) switchBtn.addEventListener('click', () => { state.viewMode = 'list'; render(); });
+    wrap.appendChild(empty);
+    return wrap;
+  }
+  const hasUndated = items.some(i => !i.period);
+  const columns = hasUndated ? [...months, '__undated__'] : [...months];
+
+  // catMap[cat][sub][colKey] = { sum, items: [{id, amount}] }
+  const catMap = {};
+  items.forEach(i => {
+    const cat = i.category;
+    const sub = i.subcategory || '—';
+    const colKey = i.period ? i.period.slice(0,7) : '__undated__';
+    if(!catMap[cat]) catMap[cat] = {};
+    if(!catMap[cat][sub]) catMap[cat][sub] = {};
+    if(!catMap[cat][sub][colKey]) catMap[cat][sub][colKey] = { sum: 0, items: [] };
+    catMap[cat][sub][colKey].sum += Number(i.amount);
+    catMap[cat][sub][colKey].items.push({ id: i.id, amount: Number(i.amount) });
+  });
+
+  const catEntries = Object.entries(catMap).map(([cat, subs]) => {
+    const total = Object.values(subs).reduce((s, m) => s + Object.values(m).reduce((a,c)=>a+c.sum,0), 0);
+    return [cat, total, subs];
+  });
+  sortCategoriesLogically(catEntries, 1);
+
+  const headerCells = columns.map(c => `<th class="num">${c === '__undated__' ? 'No Date' : fmtPeriod(c+'-01')}</th>`).join('');
+
+  const grandTotalsByCol = {};
+  columns.forEach(c => grandTotalsByCol[c] = 0);
+  let grandTotal = 0;
+  let bodyHtml = '';
+
+  catEntries.forEach(([cat, catTotal, subs]) => {
+    let catCells = '';
+    columns.forEach(c => {
+      let sum = 0;
+      Object.values(subs).forEach(monthMap => { sum += (monthMap[c] ? monthMap[c].sum : 0); });
+      grandTotalsByCol[c] += sum;
+      catCells += `<td class="num">${sum !== 0 ? fmtMoney(sum) : '—'}</td>`;
+    });
+    bodyHtml += `<tr class="group-row"><td class="cat">${cat}</td>${catCells}<td class="num">${fmtMoney(catTotal)}</td></tr>`;
+
+    const subEntries = Object.entries(subs)
+      .map(([sub, cellsByMonth]) => [sub, Object.values(cellsByMonth).reduce((a,c)=>a+c.sum,0), cellsByMonth])
+      .sort((a,b) => Math.abs(b[1]) - Math.abs(a[1]));
+    const onlyDash = subEntries.length === 1 && subEntries[0][0] === '—';
+
+    if(!onlyDash){
+      subEntries.forEach(([sub, subTotal, cellsByMonth]) => {
+        let cells = '';
+        columns.forEach(c => {
+          const cell = cellsByMonth[c];
+          const sum = cell ? cell.sum : 0;
+          cells += `<td class="num ${sum>=0?'amt-pos':'amt-neg'}" style="font-size:12.5px;">${sum !== 0 ? fmtMoney(sum) : '—'}</td>`;
+        });
+        bodyHtml += `<tr><td class="cat" style="padding-left:22px;font-size:12.5px;color:var(--grey);">${sub}</td>${cells}<td class="num" style="font-size:12.5px;">${fmtMoney(subTotal)}</td></tr>`;
+      });
+    }
+    grandTotal += catTotal;
+  });
+
+  const totalRowCells = columns.map(c => `<td class="num ${grandTotalsByCol[c]>=0?'amt-pos':'amt-neg'}">${fmtMoney(grandTotalsByCol[c])}</td>`).join('');
+  bodyHtml += `<tr class="total-row"><td class="cat">Grand total</td>${totalRowCells}<td class="num ${grandTotal>=0?'amt-pos':'amt-neg'}">${fmtMoney(grandTotal)}</td></tr>`;
+
+  const card = el(`
+    <div class="card" style="overflow-x:auto;">
+      <table class="ledger" style="min-width:${520 + columns.length*95}px;">
+        <thead><tr><th>Category</th>${headerCells}<th class="num">Total</th></tr></thead>
+        <tbody>${bodyHtml}</tbody>
+      </table>
+    </div>
+  `);
+  wrap.appendChild(card);
+  return wrap;
+}
+
+function StatementTable(items, type){
+  const wrap = el(`<div></div>`);
+
+  const addBar = el(`
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;">
+      <button class="btn small secondary" id="quick-fill-btn">+ Quick fill months</button>
+      <button class="btn small" id="add-line-item-btn">+ Add line item</button>
+    </div>
+  `);
+  addBar.querySelector('#add-line-item-btn').addEventListener('click', () => openAddLineItem(type));
+  addBar.querySelector('#quick-fill-btn').addEventListener('click', () => openQuickFill(type));
+  wrap.appendChild(addBar);
+
+  if(items.length === 0){
+    wrap.appendChild(el(`<div class="empty-state"><div class="big">No ${type==='pnl'?'PnL':'Cashflow'} data</div><div>Click "+ Add line item" or upload a file to get started.</div></div>`));
+    return wrap;
+  }
+  const groups = {};
+  items.forEach(i => {
+    const key = i.category;
+    if(!groups[key]) groups[key] = [];
+    groups[key].push(i);
+  });
+  const groupEntries = Object.entries(groups).map(([cat, rows]) => {
+    const sortedRows = [...rows].sort((a, b) => {
+      if(!a.period && !b.period) return 0;
+      if(!a.period) return 1;
+      if(!b.period) return -1;
+      return a.period.localeCompare(b.period);
+    });
+    return [cat, rows.reduce((s,i)=>s+Number(i.amount),0), sortedRows];
+  });
+  sortCategoriesLogically(groupEntries, 1);
+  const grandTotal = items.reduce((s,i)=>s+Number(i.amount),0);
+
+  let rowsHtml = '';
+  let stripeMonthKey = null;
+  let stripeOn = false;
+  groupEntries.forEach(([cat, subtotal, rows]) => {
+    rowsHtml += `<tr class="group-row"><td class="cat" colspan="2">${cat}</td><td></td><td class="num">${fmtMoney(subtotal)}</td><td></td></tr>`;
+    rows.forEach(r => {
+      const monthKey = r.period || '__none__';
+      if(monthKey !== stripeMonthKey){ stripeOn = !stripeOn; stripeMonthKey = monthKey; }
+      rowsHtml += `<tr ${stripeOn ? 'style="background:var(--stripe);"' : ''}>
+        <td></td>
+        <td class="cat">${r.subcategory || '—'} ${r.status==='forecast' ? '<span class="pill forecast">Forecast</span>' : ''}</td>
+        <td style="font-size:12px;color:var(--grey);">${fmtPeriod(r.period)}</td>
+        <td class="num ${r.amount>=0?'amt-pos':'amt-neg'}">${fmtMoney(r.amount)}</td>
+        <td style="white-space:nowrap;">
+          <button class="btn small secondary row-edit" data-id="${r.id}" style="padding:3px 8px;font-size:11px;">Edit</button>
+          <button class="btn small secondary row-delete" data-id="${r.id}" style="padding:3px 8px;font-size:11px;">Delete</button>
+        </td>
+      </tr>`;
+    });
+  });
+  rowsHtml += `<tr class="total-row"><td class="cat" colspan="2">Grand total</td><td></td><td class="num ${grandTotal>=0?'amt-pos':'amt-neg'}">${fmtMoney(grandTotal)}</td><td></td></tr>`;
+
+  const card = el(`
+    <div class="card">
+      <table class="ledger">
+        <thead><tr><th style="width:24px;"></th><th>Subcategory</th><th>Month</th><th class="num">Amount</th><th style="width:120px;"></th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>
+  `);
+  card.querySelectorAll('.row-edit').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const item = state.lineItems.find(i => i.id === btn.dataset.id);
+      if(item) openEditLineItem(item);
+    });
+  });
+  card.querySelectorAll('.row-delete').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const item = state.lineItems.find(i => i.id === btn.dataset.id);
+      const label = item ? `${item.category}${item.subcategory ? ' — ' + item.subcategory : ''} (${fmtMoney(item.amount)})` : null;
+      deleteLineItem(btn.dataset.id, label);
+    });
+  });
+  wrap.appendChild(card);
+  return wrap;
+}
+
+function BudgetView(project){
+  const wrap = el(`<div></div>`);
+  const isAdmin = state.profile && state.profile.role === 'admin';
+
+  // Meta card
+  wrap.appendChild(el(`
+    <div class="card">
+      <div class="card-title">Project Info</div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; font-size:13px;">
+        <div><div style="color:var(--grey);font-size:11px;text-transform:uppercase;margin-bottom:3px;">Client</div><div>${project.client_name || '—'}</div></div>
+        <div><div style="color:var(--grey);font-size:11px;text-transform:uppercase;margin-bottom:3px;">Location</div><div>${project.location || '—'}</div></div>
+        <div><div style="color:var(--grey);font-size:11px;text-transform:uppercase;margin-bottom:3px;">Contract Value (excl. SST)</div><div>${fmtMoney(project.contract_value || 0)}</div></div>
+      </div>
+    </div>
+  `));
+
+  // Budget category table
+  const budgetItems = state.budgetItems || [];
+  const cogsTotal = budgetItems.reduce((s,b) => s + Number(b.budget_amount), 0);
+
+  const actualFor = (category) => {
+    const catLower = category.trim().toLowerCase();
+    return state.lineItems
+      .filter(i => i.category && i.category.trim().toLowerCase() === catLower)
+      .reduce((s,i) => s + Math.abs(Number(i.amount)), 0);
+  };
+
+  const addBar = el(`
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <div class="card-title" style="margin:0;">Budget by Category</div>
+      ${isAdmin ? `<button class="btn small" id="add-budget-item-btn">+ Add budget line</button>` : ''}
+    </div>
+  `);
+  if(isAdmin) addBar.querySelector('#add-budget-item-btn').addEventListener('click', openAddBudgetItem);
+
+  const budgetCard = el(`<div class="card"></div>`);
+  budgetCard.appendChild(addBar);
+
+  if(budgetItems.length === 0){
+    budgetCard.appendChild(el(`<div class="empty-state" style="padding:30px 0;"><div class="big">No budget lines yet</div><div>${isAdmin ? 'Click "+ Add budget line" to set your estimated cost per category.' : 'Ask an admin to set up the project budget.'}</div></div>`));
+  } else {
+    const rowsHtml = budgetItems.map(b => {
+      const actual = actualFor(b.category);
+      const variance = Number(b.budget_amount) - actual;
+      const pct = cogsTotal > 0 ? (Number(b.budget_amount) / cogsTotal * 100) : 0;
+      return `<tr>
+        <td class="cat">${b.category}</td>
+        <td class="num">${fmtMoney(b.budget_amount)}</td>
+        <td class="num" style="color:var(--grey);">${fmtMoney(actual)}</td>
+        <td class="num ${variance>=0?'amt-pos':'amt-neg'}">${fmtMoney(variance)}</td>
+        <td class="num" style="color:var(--grey);">${pct.toFixed(1)}%</td>
+        ${isAdmin ? `<td style="white-space:nowrap;">
+          <button class="btn small secondary budget-edit" data-id="${b.id}" style="padding:3px 8px;font-size:11px;">Edit</button>
+          <button class="btn small secondary budget-delete" data-id="${b.id}" style="padding:3px 8px;font-size:11px;">Delete</button>
+        </td>` : ''}
+      </tr>`;
+    }).join('');
+    const table = el(`
+      <table class="ledger">
+        <thead><tr><th>Category</th><th class="num">Budget</th><th class="num">Actual</th><th class="num">Variance</th><th class="num">% of COGS</th>${isAdmin ? '<th></th>' : ''}</tr></thead>
+        <tbody>
+          ${rowsHtml}
+          <tr class="group-row"><td class="cat">Subtotal — COGS</td><td class="num">${fmtMoney(cogsTotal)}</td><td></td><td></td><td></td>${isAdmin?'<td></td>':''}</tr>
+        </tbody>
+      </table>
+    `);
+    table.querySelectorAll('.budget-edit').forEach(btn => btn.addEventListener('click', () => {
+      const item = budgetItems.find(b => b.id === btn.dataset.id);
+      if(item) openEditBudgetItem(item);
+    }));
+    table.querySelectorAll('.budget-delete').forEach(btn => btn.addEventListener('click', () => {
+      const item = budgetItems.find(b => b.id === btn.dataset.id);
+      if(item) deleteBudgetItem(item.id, item.category);
+    }));
+    budgetCard.appendChild(table);
+  }
+  wrap.appendChild(budgetCard);
+
+  // Cost & pricing rollup
+  const sstPercent = Number(project.sst_percent) || 0;
+  const depositPercent = Number(project.deposit_percent) || 0;
+  const taxPercent = Number(project.tax_percent) || 0;
+  const contractValue = Number(project.contract_value) || 0;
+
+  const totalProjectCost = cogsTotal;
+  const sstAmount = contractValue * sstPercent / 100;
+  const totalContractValue = contractValue + sstAmount;
+  const depositAmount = contractValue * depositPercent / 100;
+  const grossProfit = contractValue - totalProjectCost;
+  const taxAmount = grossProfit * taxPercent / 100;
+  const netProfit = grossProfit - taxAmount;
+  const margin = contractValue > 0 ? (netProfit / contractValue * 100) : 0;
+
+  wrap.appendChild(el(`
+    <div class="card">
+      <div class="card-title">Total Project Cost</div>
+      <table class="ledger">
+        <tbody>
+          <tr><td class="cat">Subtotal — COGS</td><td class="num">${fmtMoney(cogsTotal)}</td></tr>
+          <tr class="total-row"><td class="cat">Total Project Cost</td><td class="num">${fmtMoney(totalProjectCost)}</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-title">Pricing</div>
+      <table class="ledger">
+        <tbody>
+          <tr><td class="cat">Contract Value (excl. SST)</td><td class="num">${fmtMoney(contractValue)}</td></tr>
+          <tr><td class="cat">SST (${sstPercent}%)</td><td class="num">${fmtMoney(sstAmount)}</td></tr>
+          <tr class="total-row"><td class="cat">Total Contract Value (incl. SST)</td><td class="num">${fmtMoney(totalContractValue)}</td></tr>
+          <tr><td class="cat">Deposit Required (${depositPercent}%)</td><td class="num">${fmtMoney(depositAmount)}</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-title">Profitability</div>
+      <table class="ledger">
+        <tbody>
+          <tr><td class="cat">Gross Profit</td><td class="num ${grossProfit>=0?'amt-pos':'amt-neg'}">${fmtMoney(grossProfit)}</td></tr>
+          <tr><td class="cat">Tax (${taxPercent}% of Gross Profit)</td><td class="num">${fmtMoney(taxAmount)}</td></tr>
+          <tr class="total-row"><td class="cat">Net Profit</td><td class="num ${netProfit>=0?'amt-pos':'amt-neg'}">${fmtMoney(netProfit)} <span style="font-size:12px;font-weight:400;color:var(--grey);">(${margin.toFixed(1)}% margin)</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  `));
+
+  return wrap;
+}
+
+function ForecastView(project){
+  const wrap = el(`<div></div>`);
+  const cashItems = state.lineItems.filter(i => i.statement_type === 'cashflow');
+  const openingBalance = Number(project.opening_balance) || 0;
+
+  const totalActual = cashItems.filter(i=>i.status==='actual').reduce((s,i)=>s+Number(i.amount),0);
+  const totalForecast = cashItems.filter(i=>i.status==='forecast').reduce((s,i)=>s+Number(i.amount),0);
+  const currentPosition = openingBalance + totalActual;
+  const projectedPosition = currentPosition + totalForecast;
+
+  wrap.appendChild(el(`
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">Opening balance</div>
+        <div class="stat-value">${fmtMoney(openingBalance)}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Current position (Actuals)</div>
+        <div class="stat-value ${currentPosition>=0?'pos':'neg'}">${fmtMoney(currentPosition)}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Projected position (+ Forecast)</div>
+        <div class="stat-value ${projectedPosition>=0?'pos':'neg'}">${fmtMoney(projectedPosition)}</div>
+      </div>
+    </div>
+  `));
+
+  const dated = cashItems.filter(i => i.period);
+  const undated = cashItems.filter(i => !i.period);
+
+  if(dated.length === 0){
+    wrap.appendChild(el(`<div class="empty-state"><div class="big">No dated cashflow items yet</div><div>Add cashflow line items with a Month set (Actual or Forecast) to build a projection.</div></div>`));
+    return wrap;
+  }
+
+  const byMonth = {};
+  dated.forEach(i => {
+    const m = i.period.slice(0,7);
+    if(!byMonth[m]) byMonth[m] = { actual: 0, forecast: 0 };
+    if(i.status === 'forecast') byMonth[m].forecast += Number(i.amount);
+    else byMonth[m].actual += Number(i.amount);
+  });
+  const months = Object.keys(byMonth).sort();
+
+  let running = openingBalance;
+  let rowsHtml = '';
+  months.forEach(m => {
+    const { actual, forecast } = byMonth[m];
+    const net = actual + forecast;
+    running += net;
+    const isForecastMonth = forecast !== 0;
+    rowsHtml += `<tr>
+      <td class="cat">${fmtPeriod(m+'-01')} ${isForecastMonth ? '<span class="pill forecast">Forecast</span>' : ''}</td>
+      <td class="num ${actual>=0?'amt-pos':'amt-neg'}">${actual !== 0 ? fmtMoney(actual) : '—'}</td>
+      <td class="num ${forecast>=0?'amt-pos':'amt-neg'}">${forecast !== 0 ? fmtMoney(forecast) : '—'}</td>
+      <td class="num ${net>=0?'amt-pos':'amt-neg'}">${fmtMoney(net)}</td>
+      <td class="num ${running>=0?'amt-pos':'amt-neg'}" style="font-weight:600;">${fmtMoney(running)}</td>
+    </tr>`;
+  });
+
+  const card = el(`
+    <div class="card">
+      <div class="card-title">Monthly cash projection</div>
+      <table class="ledger">
+        <thead><tr><th>Month</th><th class="num">Actual</th><th class="num">Forecast</th><th class="num">Net</th><th class="num">Running Balance</th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>
+  `);
+  wrap.appendChild(card);
+
+  if(undated.length > 0){
+    const undatedNet = undated.reduce((s,i)=>s+Number(i.amount),0);
+    wrap.appendChild(el(`
+      <div class="card">
+        <div class="card-title">Not included in projection</div>
+        <div style="font-size:13px;color:var(--grey);">${undated.length} cashflow item(s) with no Month set — total ${fmtMoney(undatedNet)}. Set a Month on these to include them in the timeline above.</div>
+      </div>
+    `));
+  }
+
+  return wrap;
+}
+
+async function fixCashflowStructure(){
+  const candidates = state.lineItems.filter(i => i.statement_type === 'cashflow' && i.subcategory);
+  if(candidates.length === 0){
+    alert('No Cashflow items with a Subcategory found in this project — nothing to fix.');
+    return;
+  }
+  askConfirm({
+    title: 'Fix Cashflow structure?',
+    message: `This will swap Category ⇄ Subcategory for <strong>${candidates.length}</strong> Cashflow item(s) in this project — turning "Cash-In/Cash-Out" into the Category and the specific item into the Subcategory. This cannot be undone automatically.`,
+    confirmLabel: 'Swap now',
+    danger: true,
+    onConfirm: async () => {
+      for(const item of candidates){
+        await sb.from('line_items').update({
+          category: item.subcategory,
+          subcategory: item.category,
+        }).eq('id', item.id);
+      }
+      await loadProjectData(state.selectedProjectId);
+      render();
+    }
+  });
+}
+
+function UploadsView(){
+  const wrap = el(`<div></div>`);
+
+  const isAdmin = state.profile && state.profile.role === 'admin';
+  if(isAdmin){
+    const maintCard = el(`
+      <div class="card">
+        <div class="card-title">Data maintenance</div>
+        <div style="font-size:13px;color:var(--grey);margin-bottom:10px;">
+          If Cashflow items were imported with Category/Subcategory swapped (e.g. "Client Payment" as Category instead of "Cash-In"), use this to fix them.
+        </div>
+        <button class="btn small secondary" id="fix-cashflow-structure-btn">Fix Cashflow structure</button>
+      </div>
+    `);
+    maintCard.querySelector('#fix-cashflow-structure-btn').addEventListener('click', fixCashflowStructure);
+    wrap.appendChild(maintCard);
+  }
+
+  const historyCard = el(`<div class="card"><div class="card-title">Upload history</div></div>`);
+  const list = el(`<div class="upload-list"></div>`);
+  if(state.uploads.length === 0){
+    list.appendChild(el(`<div style="color:var(--grey);font-size:13px;">No uploads yet.</div>`));
+  }
+  state.uploads.forEach(u => {
+    const row = el(`
+      <div class="upload-row">
+        <div>
+          <span class="pill ${u.statement_type}">${u.statement_type === 'pnl' ? 'PnL' : 'Cashflow'}</span>
+          <strong style="margin-left:8px;">${u.file_name}</strong>
+          ${u.period_label ? `<span class="upload-meta"> · ${u.period_label}</span>` : ''}
+          <div class="upload-meta">by ${u.profiles?.full_name || u.profiles?.email || 'someone'} · ${new Date(u.uploaded_at).toLocaleDateString('en-MY')}</div>
+        </div>
+        <button class="btn small secondary" data-id="${u.id}">Delete</button>
+      </div>
+    `);
+    row.querySelector('button').addEventListener('click', () => deleteUpload(u.id, u.file_name));
+    list.appendChild(row);
+  });
+  historyCard.appendChild(list);
+  wrap.appendChild(historyCard);
+  return wrap;
+}
+
+function ConsolidatedView(){
+  const wrap = el(`<div></div>`);
+  const { pnl, cf } = computeTotals(state.lineItems);
+  wrap.appendChild(el(`
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-label">Total Net PnL (semua project)</div><div class="stat-value ${pnl>=0?'pos':'neg'}">${fmtMoney(pnl)}</div></div>
+      <div class="stat-card"><div class="stat-label">Total Net Cashflow (semua project)</div><div class="stat-value ${cf>=0?'pos':'neg'}">${fmtMoney(cf)}</div></div>
+      <div class="stat-card"><div class="stat-label">Total projects</div><div class="stat-value">${state.projects.length}</div></div>
+    </div>
+  `));
+
+  const card = el(`<div class="card"><div class="card-title">PnL & Cashflow by project</div></div>`);
+  const byProject = {};
+  state.lineItems.forEach(i => {
+    const pname = i.projects?.name || 'Unknown';
+    if(!byProject[pname]) byProject[pname] = { pnl:0, cf:0 };
+    if(i.statement_type === 'pnl') byProject[pname].pnl += Number(i.amount);
+    else byProject[pname].cf += Number(i.amount);
+  });
+  const rows = Object.entries(byProject);
+  if(rows.length === 0){
+    card.appendChild(el(`<div style="color:var(--grey);font-size:13px;">No data in any project yet.</div>`));
+  } else {
+    const table = el(`
+      <table class="ledger">
+        <thead><tr><th>Project</th><th class="num">Net PnL</th><th class="num">Net Cashflow</th></tr></thead>
+        <tbody>
+          ${rows.map(([name, v]) => `
+            <tr>
+              <td class="cat">${name}</td>
+              <td class="num ${v.pnl>=0?'amt-pos':'amt-neg'}">${fmtMoney(v.pnl)}</td>
+              <td class="num ${v.cf>=0?'amt-pos':'amt-neg'}">${fmtMoney(v.cf)}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    `);
+    card.appendChild(table);
+  }
+  wrap.appendChild(card);
+  return wrap;
+}
+
+function NewProjectModal(){
+  const nd = state.newProjectDraft || { name: '', description: '', opening_balance: '0' };
+  const overlay = el(`
+    <div class="modal-overlay">
+      <div class="modal">
+        <h3 class="modal-title">New project</h3>
+        ${state.draftRestoredBanner ? `<div class="info-msg">We restored your unsaved changes from before the page reloaded.</div>` : ''}
+        <form id="np-form">
+          <div class="field"><label>Project name</label><input type="text" name="name" value="${nd.name}" required></div>
+          <div class="field"><label>Description (optional)</label><textarea name="description" rows="2">${nd.description}</textarea></div>
+          <div class="field"><label>Opening cash balance (RM)</label><input type="number" step="0.01" name="opening_balance" value="${nd.opening_balance}" placeholder="e.g. 50000"></div>
+          <div class="modal-actions">
+            <button type="button" class="btn secondary" id="np-cancel">Cancel</button>
+            <button type="submit" class="btn">Create</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `);
+  const npForm = overlay.querySelector('#np-form');
+  npForm.addEventListener('input', () => {
+    const fd = new FormData(npForm);
+    const liveData = {
+      name: fd.get('name') || '',
+      description: fd.get('description') || '',
+      opening_balance: fd.get('opening_balance') || '0',
+    };
+    state.newProjectDraft = liveData;
+    saveDraft('profit_draft_newproject', { data: liveData });
+  });
+  overlay.querySelector('#np-cancel').addEventListener('click', () => {
+    clearDraft('profit_draft_newproject');
+    state.newProjectDraft = null;
+    state.draftRestoredBanner = false;
+    state.showNewProjectModal = false;
+    render();
+  });
+  npForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    createProject(fd.get('name'), fd.get('description'), fd.get('opening_balance'));
+  });
+  return overlay;
+}
+
+function EditProjectModal(){
+  const d = state.editProjectData;
+  const overlay = el(`
+    <div class="modal-overlay">
+      <div class="modal" style="width:480px;">
+        <h3 class="modal-title">Edit project</h3>
+        ${state.draftRestoredBanner ? `<div class="info-msg">We restored your unsaved changes from before the page reloaded.</div>` : ''}
+        <form id="ep-form">
+          <div class="field"><label>Project name</label><input type="text" name="name" value="${d.name}" required></div>
+          <div class="field"><label>Description (optional)</label><textarea name="description" rows="2">${d.description}</textarea></div>
+          <div class="field-row">
+            <div class="field"><label>Client (optional)</label><input type="text" name="client_name" value="${d.client_name}"></div>
+            <div class="field"><label>Location (optional)</label><input type="text" name="location" value="${d.location}"></div>
+          </div>
+          <div class="field"><label>Opening cash balance (RM)</label><input type="number" step="0.01" name="opening_balance" value="${d.opening_balance}"></div>
+
+          <div style="border-top:1px solid var(--line); margin:16px 0 12px; padding-top:12px;">
+            <label style="margin-bottom:8px;">Pricing & Budget settings</label>
+          </div>
+          <div class="field"><label>Contract value (RM, excl. SST)</label><input type="number" step="0.01" name="contract_value" value="${d.contract_value}" placeholder="e.g. 298000"></div>
+          <div class="field-row">
+            <div class="field"><label>SST %</label><input type="number" step="0.01" name="sst_percent" value="${d.sst_percent}"></div>
+            <div class="field"><label>Deposit %</label><input type="number" step="0.01" name="deposit_percent" value="${d.deposit_percent}"></div>
+          </div>
+          <div class="field"><label>Tax %</label><input type="number" step="0.01" name="tax_percent" value="${d.tax_percent}"></div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn secondary" id="ep-cancel">Cancel</button>
+            <button type="submit" class="btn">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `);
+  const epForm = overlay.querySelector('#ep-form');
+  epForm.addEventListener('input', () => {
+    const fd = new FormData(epForm);
+    const liveData = {
+      id: d.id,
+      name: fd.get('name') || '',
+      description: fd.get('description') || '',
+      opening_balance: fd.get('opening_balance') || '0',
+      client_name: fd.get('client_name') || '',
+      location: fd.get('location') || '',
+      contract_value: fd.get('contract_value') || '0',
+      sst_percent: fd.get('sst_percent') || '0',
+      deposit_percent: fd.get('deposit_percent') || '0',
+      mos_percent: fd.get('mos_percent') || '0',
+      tax_percent: fd.get('tax_percent') || '0',
+    };
+    state.editProjectData = liveData;
+    saveDraft('profit_draft_editproject', { data: liveData });
+  });
+  overlay.querySelector('#ep-cancel').addEventListener('click', () => {
+    clearDraft('profit_draft_editproject');
+    state.draftRestoredBanner = false;
+    state.showEditProjectModal = false;
+    render();
+  });
+  epForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const fields = Object.fromEntries(fd.entries());
+    state.showEditProjectModal = false;
+    askConfirm({
+      title: 'Save project changes?',
+      message: `Confirm changes to <strong>${fields.name}</strong>.`,
+      confirmLabel: 'Save changes',
+      danger: false,
+      onConfirm: () => updateProject(d.id, fields)
+    });
+  });
+  return overlay;
+}
+
+function UploadModal(){
+  const overlay = el(`<div class="modal-overlay"></div>`);
+  const modal = el(`<div class="modal"></div>`);
+  overlay.appendChild(modal);
+
+  if(state.uploadStep === 1){
+    modal.innerHTML = `
+      <h3 class="modal-title">Upload data</h3>
+      <div class="field">
+        <label>Statement type</label>
+        <select id="stmt-type">
+          <option value="pnl" ${state.uploadStatementType==='pnl'?'selected':''}>PnL</option>
+          <option value="cashflow" ${state.uploadStatementType==='cashflow'?'selected':''}>Cashflow</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Period label (optional)</label>
+        <input type="text" id="period-label" placeholder="e.g. Jan 2026, FY2025" value="${state.uploadPeriodLabel}">
+      </div>
+      <div class="field">
+        <label>CSV / Excel file</label>
+        <div class="file-drop ${state.uploadFile?'has-file':''}" id="file-drop">
+          ${state.uploadFile ? state.uploadFile.name : 'Click to select a file (.csv, .xlsx)'}
+        </div>
+        <input type="file" id="file-input" accept=".csv,.xlsx,.xls" style="display:none;">
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn secondary" id="up-cancel">Cancel</button>
+      </div>
+    `;
+    modal.querySelector('#stmt-type').addEventListener('change', (e) => { state.uploadStatementType = e.target.value; });
+    modal.querySelector('#period-label').addEventListener('input', (e) => { state.uploadPeriodLabel = e.target.value; });
+    modal.querySelector('#file-drop').addEventListener('click', () => modal.querySelector('#file-input').click());
+    modal.querySelector('#file-input').addEventListener('change', (e) => {
+      if(e.target.files[0]) handleFileSelect(e.target.files[0]);
+    });
+    modal.querySelector('#up-cancel').addEventListener('click', () => { closeUploadModal(); render(); });
+  }
+
+  if(state.uploadStep === 2){
+    const rows = state.uploadRawRows.slice(0, 15);
+    const maxCols = 8;
+    modal.style.width = '600px';
+    modal.innerHTML = `
+      <h3 class="modal-title">Select header row</h3>
+      <div class="page-sub" style="margin-bottom:12px;">Click the row that contains the actual column names (e.g. Category, Amount). Rows above it will be ignored.</div>
+      <div style="font-size:12px;color:var(--grey);margin-bottom:10px;">Reading from: <strong>${state.uploadFile ? state.uploadFile.name : '—'}</strong></div>
+      <div style="overflow-x:auto; border:1px solid var(--line); border-radius:6px; max-height:340px; overflow-y:auto;">
+        <table style="border-collapse:collapse; font-size:11.5px; width:100%;">
+          <tbody>
+            ${rows.map((row, idx) => `
+              <tr class="header-row-option" data-idx="${idx}" style="cursor:pointer; ${state.uploadHeaderRowIndex===idx ? 'background:var(--teal-soft);' : ''}">
+                <td style="padding:5px 8px; color:var(--grey); border-right:1px solid var(--line); font-family:'Lexend',sans-serif; font-variant-numeric:tabular-nums;">${idx+1}${state.uploadHeaderRowIndex===idx ? ' ✓' : ''}</td>
+                ${row.slice(0,maxCols).map(cell => `<td style="padding:5px 8px; border-bottom:1px solid var(--paper-dim); white-space:nowrap; max-width:110px; overflow:hidden; text-overflow:ellipsis;">${(cell===undefined||String(cell).trim()==='')?'<span style="color:#ccc;">—</span>':String(cell)}</td>`).join('')}
+                ${row.length > maxCols ? `<td style="padding:5px 8px; color:var(--grey);">+${row.length-maxCols} more</td>` : ''}
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn secondary" id="up-back">Back</button>
+        <button type="button" class="btn" id="up-next">Next</button>
+      </div>
+    `;
+    modal.querySelectorAll('.header-row-option').forEach(r => r.addEventListener('click', () => {
+      state.uploadHeaderRowIndex = parseInt(r.dataset.idx);
+      render();
+    }));
+    modal.querySelector('#up-back').addEventListener('click', () => {
+      state.uploadStep = 1;
+      state.uploadFile = null;
+      state.uploadRawRows = [];
+      render();
+    });
+    modal.querySelector('#up-next').addEventListener('click', () => {
+      buildHeadersAndRows();
+      state.uploadStep = 3;
+      render();
+    });
+  }
+
+  if(state.uploadStep === 3){
+    const headers = state.uploadFileHeaders;
+    const opts = (selected) => `<option value="">—</option>` + headers.map(h => `<option value="${h}" ${h===selected?'selected':''}>${h}</option>`).join('');
+    modal.innerHTML = `
+      <h3 class="modal-title">Map columns</h3>
+      ${state.uploadTemplateDetected ? `<div class="info-msg">✓ Template detected automatically — columns are already mapped. Review & click Import.</div>` : ''}
+      <div class="page-sub" style="margin-bottom:14px;">${state.uploadFileRows.length} rows detected (after header row)</div>
+      <div class="field"><label>Category (required)</label><select id="map-category">${opts(state.uploadMapping.category)}</select></div>
+      <div class="field"><label>Subcategory (optional)</label><select id="map-subcategory">${opts(state.uploadMapping.subcategory)}</select></div>
+      <div class="field"><label>Amount (required)</label><select id="map-amount">${opts(state.uploadMapping.amount)}</select></div>
+      <div class="field">
+        <label>Skip rows if Category contains (comma-separated)</label>
+        <input type="text" id="exclude-keywords" value="${state.uploadExcludeKeywords}">
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn secondary" id="up-back">Back</button>
+        <button type="button" class="btn" id="up-confirm">Import</button>
+      </div>
+    `;
+    modal.querySelector('#map-category').addEventListener('change', (e) => state.uploadMapping.category = e.target.value);
+    modal.querySelector('#map-subcategory').addEventListener('change', (e) => state.uploadMapping.subcategory = e.target.value);
+    modal.querySelector('#map-amount').addEventListener('change', (e) => state.uploadMapping.amount = e.target.value);
+    modal.querySelector('#exclude-keywords').addEventListener('input', (e) => state.uploadExcludeKeywords = e.target.value);
+    modal.querySelector('#up-back').addEventListener('click', () => { state.uploadStep = 2; render(); });
+    modal.querySelector('#up-confirm').addEventListener('click', confirmUpload);
+  }
+
+  return overlay;
+}
+
+function BudgetItemModal(){
+  const d = state.budgetItemModalData;
+  const isEdit = !!d.id;
+  const existingCategories = [...new Set(state.lineItems.map(i => i.category))].sort();
+  const overlay = el(`
+    <div class="modal-overlay">
+      <div class="modal">
+        <h3 class="modal-title">${isEdit ? 'Edit' : 'Add'} budget line</h3>
+        <form id="bi-form">
+          <div class="field">
+            <label>Category (required)</label>
+            <select id="bi-category-quickpick" style="margin-bottom:6px;">
+              <option value="">— Quick pick existing category —</option>
+              ${existingCategories.map(c => `<option value="${c}">${c}</option>`).join('')}
+            </select>
+            <input type="text" name="category" id="bi-category-input" value="${d.category}" placeholder="e.g. Equipment & Hardware" required>
+          </div>
+          <div class="field"><label>Budget amount (RM)</label><input type="number" step="0.01" name="budget_amount" value="${d.budget_amount}" placeholder="e.g. 81193.20" required></div>
+          <div class="modal-actions">
+            <button type="button" class="btn secondary" id="bi-cancel">Cancel</button>
+            <button type="submit" class="btn">${isEdit ? 'Save' : 'Add'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `);
+  const quickpick = overlay.querySelector('#bi-category-quickpick');
+  const categoryInput = overlay.querySelector('#bi-category-input');
+  quickpick.addEventListener('change', () => { if(quickpick.value) categoryInput.value = quickpick.value; });
+  overlay.querySelector('#bi-cancel').addEventListener('click', () => closeBudgetItemModal());
+  overlay.querySelector('#bi-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    saveBudgetItem(d.id, fd.get('category'), fd.get('budget_amount'));
+  });
+  return overlay;
+}
+
+function QuickFillModal(){
+  const type = state.quickFillType;
+  const draft = state.quickFillDraft;
+  const existingCategories = [...new Set(
+    state.lineItems.filter(i => i.statement_type === type).map(i => i.category)
+  )].sort();
+  const existingSubcategories = [...new Set(
+    state.lineItems.filter(i => i.statement_type === type && i.subcategory).map(i => i.subcategory)
+  )].sort();
+
+  const year = new Date().getFullYear();
+  const months = Array.from({length:12}, (_, m) => `${year}-${String(m+1).padStart(2,'0')}`);
+  const draftMonths = (draft && draft.months) || {};
+
+  const overlay = el(`
+    <div class="modal-overlay">
+      <div class="modal" style="width:460px;">
+        <h3 class="modal-title">Quick fill months — ${type === 'pnl' ? 'PnL' : 'Cashflow'}</h3>
+        ${state.draftRestoredBanner ? `<div class="info-msg">We restored your unsaved entries from before the page reloaded.</div>` : ''}
+        <div class="page-sub" style="margin-bottom:14px;">Set the Category once, then enter an amount per month below. Blank months are skipped.</div>
+
+        <div class="field">
+          <label>Category (required)</label>
+          <select id="qf-category-quickpick" style="margin-bottom:6px;">
+            <option value="">— Quick pick existing category —</option>
+            ${existingCategories.map(c => `<option value="${c}">${c}</option>`).join('')}
+          </select>
+          <input type="text" id="qf-category-input" placeholder="Or type a new category name" value="${draft ? draft.category || '' : ''}" required>
+        </div>
+
+        <div class="field">
+          <label>Subcategory (optional)</label>
+          <select id="qf-subcategory-quickpick" style="margin-bottom:6px;">
+            <option value="">— Quick pick existing subcategory —</option>
+            ${existingSubcategories.map(s => `<option value="${s}">${s}</option>`).join('')}
+          </select>
+          <input type="text" id="qf-subcategory-input" placeholder="Or type a new subcategory name" value="${draft ? draft.subcategory || '' : ''}">
+        </div>
+
+        <div class="field">
+          <label>Status</label>
+          <select id="qf-status">
+            <option value="actual" ${draft && draft.status==='forecast' ? '' : 'selected'}>Actual — already happened</option>
+            <option value="forecast" ${draft && draft.status==='forecast' ? 'selected' : ''}>Forecast — expected in future</option>
+          </select>
+        </div>
+
+        <div class="field-row" style="align-items:end;">
+          <div class="field" style="margin-bottom:0;">
+            <label>Fill amount (${year})</label>
+            <input type="number" step="0.01" id="qf-fill-amount" placeholder="e.g. -4500">
+          </div>
+          <button type="button" class="btn small secondary" id="qf-apply-all" style="margin-bottom:14px;">Apply to all 12</button>
+        </div>
+
+        <div style="max-height:280px; overflow-y:auto; border:1px solid var(--line); border-radius:6px; padding:10px 12px; margin-top:6px;">
+          ${months.map(m => `
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:5px 0; border-bottom:1px solid var(--paper-dim);">
+              <label style="font-size:13px; font-weight:500; color:var(--text); text-transform:none; letter-spacing:normal;">${fmtPeriod(m+'-01')}</label>
+              <input type="number" step="0.01" class="qf-month-input" data-month="${m}" style="width:140px;" placeholder="—" value="${draftMonths[m] !== undefined ? draftMonths[m] : ''}">
+            </div>
+          `).join('')}
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn secondary" id="qf-cancel">Cancel</button>
+          <button type="button" class="btn" id="qf-submit">Create entries</button>
+        </div>
+      </div>
+    </div>
+  `);
+
+  const catQuickpick = overlay.querySelector('#qf-category-quickpick');
+  const catInput = overlay.querySelector('#qf-category-input');
+  catQuickpick.addEventListener('change', () => { if(catQuickpick.value) catInput.value = catQuickpick.value; saveQuickFillDraft(overlay, type); });
+
+  const subQuickpick = overlay.querySelector('#qf-subcategory-quickpick');
+  const subInput = overlay.querySelector('#qf-subcategory-input');
+  subQuickpick.addEventListener('change', () => { if(subQuickpick.value) subInput.value = subQuickpick.value; saveQuickFillDraft(overlay, type); });
+
+  overlay.querySelector('#qf-apply-all').addEventListener('click', () => {
+    const fillVal = overlay.querySelector('#qf-fill-amount').value;
+    overlay.querySelectorAll('.qf-month-input').forEach(inp => { inp.value = fillVal; });
+    saveQuickFillDraft(overlay, type);
+  });
+
+  overlay.addEventListener('input', () => saveQuickFillDraft(overlay, type));
+
+  overlay.querySelector('#qf-cancel').addEventListener('click', () => {
+    clearDraft('profit_draft_quickfill');
+    state.draftRestoredBanner = false;
+    closeQuickFillModal();
+  });
+
+  overlay.querySelector('#qf-submit').addEventListener('click', () => {
+    const category = catInput.value.trim();
+    const subcategory = subInput.value.trim();
+    const status = overlay.querySelector('#qf-status').value;
+    if(!category){ alert('Please enter a Category.'); return; }
+
+    const items = [];
+    overlay.querySelectorAll('.qf-month-input').forEach(inp => {
+      const v = inp.value.trim();
+      if(v === '') return;
+      const amount = parseFloat(v);
+      if(isNaN(amount) || amount === 0) return;
+      items.push({
+        project_id: state.selectedProjectId,
+        statement_type: type,
+        category,
+        subcategory: subcategory || null,
+        amount,
+        period: `${inp.dataset.month}-01`,
+        status,
+        created_by: state.profile.id,
+      });
+    });
+
+    askConfirm({
+      title: 'Create entries?',
+      message: `This will create <strong>${items.length}</strong> line item(s) for <strong>${category}</strong>.`,
+      confirmLabel: 'Create',
+      danger: false,
+      onConfirm: () => submitQuickFill(items)
+    });
+  });
+
+  return overlay;
+}
+
+function saveQuickFillDraft(overlay, type){
+  const months = {};
+  overlay.querySelectorAll('.qf-month-input').forEach(inp => {
+    if(inp.value.trim() !== '') months[inp.dataset.month] = inp.value;
+  });
+  const liveData = {
+    category: overlay.querySelector('#qf-category-input').value,
+    subcategory: overlay.querySelector('#qf-subcategory-input').value,
+    status: overlay.querySelector('#qf-status').value,
+    months,
+  };
+  // Keep in-memory state in sync (not just localStorage) so that if anything else
+  // triggers a re-render while the user is still typing, the modal rebuilds with
+  // what they've typed so far, instead of reverting to stale/blank values.
+  state.quickFillDraft = liveData;
+  saveDraft('profit_draft_quickfill', {
+    type,
+    selectedProjectId: state.selectedProjectId,
+    data: liveData
+  });
+}
+
+function LineItemModal(){
+  const isEdit = state.lineItemModalMode === 'edit';
+  const d = state.lineItemModalData;
+  const existingCategories = [...new Set(
+    state.lineItems.filter(i => i.statement_type === state.lineItemModalType).map(i => i.category)
+  )].sort();
+  const existingSubcategories = [...new Set(
+    state.lineItems.filter(i => i.statement_type === state.lineItemModalType && i.subcategory).map(i => i.subcategory)
+  )].sort();
+  const overlay = el(`
+    <div class="modal-overlay">
+      <div class="modal">
+        <h3 class="modal-title">${isEdit ? 'Edit' : 'Add'} line item — ${state.lineItemModalType === 'pnl' ? 'PnL' : 'Cashflow'}</h3>
+        ${state.draftRestoredBanner ? `<div class="info-msg">We restored your unsaved changes from before the page reloaded.</div>` : ''}
+        <form id="li-form">
+          <div class="field">
+            <label>Category (required)</label>
+            <select id="category-quickpick" style="margin-bottom:6px;">
+              <option value="">— Quick pick existing category —</option>
+              ${existingCategories.map(c => `<option value="${c}">${c}</option>`).join('')}
+            </select>
+            <input type="text" name="category" id="category-input" value="${d.category}" placeholder="Or type a new category name" required>
+          </div>
+          <div class="field">
+            <label>Subcategory (optional)</label>
+            <select id="subcategory-quickpick" style="margin-bottom:6px;">
+              <option value="">— Quick pick existing subcategory —</option>
+              ${existingSubcategories.map(s => `<option value="${s}">${s}</option>`).join('')}
+            </select>
+            <input type="text" name="subcategory" id="subcategory-input" value="${d.subcategory}" placeholder="Or type a new subcategory name">
+          </div>
+          <div class="field-row">
+            <div class="field"><label>Amount (RM) — negative for outflow/expense</label><input type="number" step="0.01" name="amount" value="${d.amount}" placeholder="e.g. -4500 or 15000" required></div>
+            <div class="field"><label>Month (optional)</label><input type="month" name="period" value="${d.period}"></div>
+          </div>
+          <div class="field">
+            <label>Status</label>
+            <select name="status">
+              <option value="actual" ${d.status==='actual'?'selected':''}>Actual — already happened</option>
+              <option value="forecast" ${d.status==='forecast'?'selected':''}>Forecast — expected in future</option>
+            </select>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn secondary" id="li-cancel">Cancel</button>
+            <button type="submit" class="btn">${isEdit ? 'Save' : 'Add'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `);
+  const quickpick = overlay.querySelector('#category-quickpick');
+  const categoryInput = overlay.querySelector('#category-input');
+  if(existingCategories.includes(d.category)) quickpick.value = d.category;
+  quickpick.addEventListener('change', () => {
+    if(quickpick.value) categoryInput.value = quickpick.value;
+  });
+
+  const subQuickpick = overlay.querySelector('#subcategory-quickpick');
+  const subInput = overlay.querySelector('#subcategory-input');
+  if(existingSubcategories.includes(d.subcategory)) subQuickpick.value = d.subcategory;
+  subQuickpick.addEventListener('change', () => {
+    if(subQuickpick.value) subInput.value = subQuickpick.value;
+  });
+
+  overlay.querySelector('#li-cancel').addEventListener('click', () => { clearDraft('profit_draft_lineitem'); state.draftRestoredBanner = false; closeLineItemModal(); render(); });
+
+  const liForm = overlay.querySelector('#li-form');
+  liForm.addEventListener('input', () => {
+    const fd = new FormData(liForm);
+    const liveData = {
+      id: d.id,
+      category: fd.get('category') || '',
+      subcategory: fd.get('subcategory') || '',
+      amount: fd.get('amount') || '',
+      period: fd.get('period') || '',
+      status: fd.get('status') || 'actual',
+    };
+    // Keep in-memory state in sync (not just localStorage) so that if anything else
+    // triggers a re-render while the user is still typing, the modal rebuilds with
+    // what they've typed so far, instead of reverting to stale values.
+    state.lineItemModalData = liveData;
+    saveDraft('profit_draft_lineitem', {
+      mode: state.lineItemModalMode,
+      type: state.lineItemModalType,
+      selectedProjectId: state.selectedProjectId,
+      data: liveData
+    });
+  });
+
+  overlay.querySelector('#li-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    state.lineItemModalData = {
+      ...state.lineItemModalData,
+      category: fd.get('category'),
+      subcategory: fd.get('subcategory'),
+      amount: fd.get('amount'),
+      period: fd.get('period'),
+      status: fd.get('status'),
+    };
+    if(isEdit){
+      state.showLineItemModal = false;
+      askConfirm({
+        title: 'Save changes?',
+        message: `Confirm changes to <strong>${state.lineItemModalData.category}</strong> (${fmtMoney(parseFloat(state.lineItemModalData.amount) || 0)}).`,
+        confirmLabel: 'Save changes',
+        danger: false,
+        onConfirm: () => saveLineItem()
+      });
+    } else {
+      saveLineItem();
+    }
+  });
+  return overlay;
+}
+
+init();
+</script>
+</body>
+</html>

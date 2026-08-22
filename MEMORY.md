@@ -132,3 +132,4 @@ Fail utama: `pnl-cashflow-tracker.html` — single-file HTML app (vanilla JS, no
 ---
 
 *Kemaskini terakhir: rujuk timestamp conversation. Sila update file ni bila ada perubahan besar (schema, feature baru, design system) supaya session akan datang boleh terus faham konteks tanpa ulang tanya.*
+# Staging environment

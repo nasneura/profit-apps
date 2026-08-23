@@ -10,6 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html-docx-js@0.3.1/dist/html-docx.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   :root{
     --ink:#171721;
@@ -296,7 +297,7 @@ function fmtMoney(n){
   return (v < 0 ? '-RM ' : 'RM ') + abs;
 }
 
-const MONTH_NAMES = ['Jan','Feb','Mac','Apr','Mei','Jun','Jul','Ogo','Sep','Okt','Nov','Dis'];
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 function fmtPeriod(dateStr){
   if(!dateStr) return '—';
@@ -2122,11 +2123,9 @@ function CharterView(project){
 
   const downloadBar = el(`
     <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:14px;">
-      <button class="btn secondary pill" id="download-charter-word-btn">Download (Word)</button>
       <button class="btn pill" id="download-charter-pdf-btn">Download (PDF)</button>
     </div>
   `);
-  downloadBar.querySelector('#download-charter-word-btn').addEventListener('click', () => downloadProjectCharterWord(project));
   downloadBar.querySelector('#download-charter-pdf-btn').addEventListener('click', () => downloadProjectCharterPDF(project));
   wrap.appendChild(downloadBar);
 
@@ -2443,6 +2442,79 @@ function AlertsView(project){
   return wrap;
 }
 
+// ===== Chart.js helpers for Dashboard visuals =====
+const chartInstances = {};
+function destroyChart(id){ if(chartInstances[id]){ chartInstances[id].destroy(); delete chartInstances[id]; } }
+function fmtMoneyShort(n){
+  const v = Number(n) || 0;
+  const abs = Math.abs(v);
+  const sign = v < 0 ? '-' : '';
+  if(abs >= 1000000) return sign + 'RM ' + (abs/1000000).toFixed(1) + 'M';
+  if(abs >= 1000) return sign + 'RM ' + (abs/1000).toFixed(0) + 'K';
+  return sign + 'RM ' + abs.toFixed(0);
+}
+function mountLineChart(canvas, id, labels, data, color){
+  setTimeout(() => {
+    if(!canvas.isConnected) return;
+    destroyChart(id);
+    chartInstances[id] = new Chart(canvas.getContext('2d'), {
+      type: 'line',
+      data: { labels, datasets: [{ data, borderColor: color, backgroundColor: color+'26', fill: true, tension: 0.3, pointRadius: 2, pointBackgroundColor: color, borderWidth: 2 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => fmtMoney(ctx.parsed.y) } } },
+        scales: {
+          x: { ticks: { color: '#6E6C82', font: { size: 10 } }, grid: { display: false } },
+          y: { ticks: { color: '#6E6C82', font: { size: 10 }, callback: v => fmtMoneyShort(v) }, grid: { color: 'rgba(255,255,255,0.05)' } }
+        }
+      }
+    });
+  }, 0);
+}
+function mountBarChart(canvas, id, labels, data, colors, horizontal){
+  setTimeout(() => {
+    if(!canvas.isConnected) return;
+    destroyChart(id);
+    chartInstances[id] = new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: { labels, datasets: [{ data, backgroundColor: colors, borderRadius: 4 }] },
+      options: {
+        indexAxis: horizontal ? 'y' : 'x',
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => fmtMoney(horizontal ? ctx.parsed.x : ctx.parsed.y) } } },
+        scales: horizontal ? {
+          x: { ticks: { color: '#6E6C82', font: { size: 10 }, callback: v => fmtMoneyShort(v) }, grid: { color: 'rgba(255,255,255,0.05)' } },
+          y: { ticks: { color: '#B8B6C6', font: { size: 11 } }, grid: { display: false } }
+        } : {
+          x: { ticks: { color: '#6E6C82', font: { size: 10 } }, grid: { display: false } },
+          y: { ticks: { color: '#6E6C82', font: { size: 10 }, callback: v => fmtMoneyShort(v) }, grid: { color: 'rgba(255,255,255,0.05)' } }
+        }
+      }
+    });
+  }, 0);
+}
+function mountGroupedBarChart(canvas, id, labels, datasets){
+  setTimeout(() => {
+    if(!canvas.isConnected) return;
+    destroyChart(id);
+    chartInstances[id] = new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: { labels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'top', labels: { color: '#B8B6C6', font: { size: 10.5 }, boxWidth: 12 } }, tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${fmtMoney(ctx.parsed.y)}` } } },
+        scales: {
+          x: { ticks: { color: '#6E6C82', font: { size: 10 } }, grid: { display: false } },
+          y: { ticks: { color: '#6E6C82', font: { size: 10 }, callback: v => fmtMoneyShort(v) }, grid: { color: 'rgba(255,255,255,0.05)' } }
+        }
+      }
+    });
+  }, 0);
+}
+function chartCanvas(height){
+  return `<div style="height:${height}px; margin-bottom:4px;"><canvas></canvas></div>`;
+}
+
 function ForecastView(project){
   const wrap = el(`<div></div>`);
   const cashItems = state.lineItems.filter(i => i.statement_type === 'cashflow');
@@ -2488,11 +2560,15 @@ function ForecastView(project){
   const months = Object.keys(byMonth).sort();
 
   let running = openingBalance;
+  const balanceTrend = [];
+  const monthLabels = [];
   let rowsHtml = '';
   months.forEach(m => {
     const { actual, forecast } = byMonth[m];
     const net = actual + forecast;
     running += net;
+    balanceTrend.push(running);
+    monthLabels.push(fmtPeriod(m+'-01'));
     const isForecastMonth = forecast !== 0;
     rowsHtml += `<tr>
       <td class="cat">${fmtPeriod(m+'-01')} ${isForecastMonth ? '<span class="pill forecast">Forecast</span>' : ''}</td>
@@ -2502,6 +2578,16 @@ function ForecastView(project){
       <td class="num ${running>=0?'amt-pos':'amt-neg'}" style="font-weight:600;">${fmtMoney(running)}</td>
     </tr>`;
   });
+
+  const chartId = 'forecast-' + (project._consolidated ? 'consolidated' : (project.id || 'p'));
+  const trendCard = el(`
+    <div class="card">
+      <div class="card-title">Cash balance trajectory <span style="font-weight:400;font-size:12px;color:var(--grey);">— where the balance is headed, month by month</span></div>
+      ${chartCanvas(200)}
+    </div>
+  `);
+  wrap.appendChild(trendCard);
+  mountLineChart(trendCard.querySelector('canvas'), chartId, monthLabels, balanceTrend, running >= 0 ? '#6FCF97' : '#E2807A');
 
   const card = el(`
     <div class="card">
@@ -2596,63 +2682,94 @@ function UploadsView(){
 
 function getConsolidatedVirtualProject(){
   const totalOpeningBalance = state.projects.reduce((s,p) => s + (Number(p.opening_balance) || 0), 0);
-  return { opening_balance: totalOpeningBalance, percent_complete: 0, start_date: null, end_date: null };
+  return { opening_balance: totalOpeningBalance, percent_complete: 0, start_date: null, end_date: null, _consolidated: true };
 }
 
-function byProjectBreakdownTable(items, valueLabel){
-  const byProject = {};
-  items.forEach(i => {
-    const pname = i.projects?.name || 'Unknown';
-    byProject[pname] = (byProject[pname] || 0) + Number(i.amount);
-  });
-  const rows = Object.entries(byProject).sort((a,b) => b[1]-a[1]);
-  const card = el(`<div class="card"><div class="card-title">${valueLabel} by project</div></div>`);
-  if(rows.length === 0){
-    card.appendChild(el(`<div style="color:var(--grey);font-size:13px;">No data in any project yet.</div>`));
-  } else {
-    card.appendChild(el(`
-      <table class="ledger">
-        <thead><tr><th>Project</th><th class="num">${valueLabel}</th></tr></thead>
-        <tbody>
-          ${rows.map(([name,v]) => `<tr><td class="cat">${name}</td><td class="num ${v>=0?'amt-pos':'amt-neg'}">${fmtMoney(v)}</td></tr>`).join('')}
-        </tbody>
-      </table>
-    `));
+function buildConsolidatedStatementView(statementType, label){
+  const wrap = el(`<div></div>`);
+  const items = state.lineItems.filter(i => i.statement_type === statementType);
+  const total = items.reduce((s,i) => s + Number(i.amount), 0);
+  const projectCount = new Set(items.map(i => i.project_id)).size;
+
+  // ===== 1. Headline — the single number that answers "how are we doing?" =====
+  wrap.appendChild(el(`
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Net ${label}</div>
+        <div class="stat-value ${total>=0?'pos':'neg'}" style="font-size:28px;">${fmtMoney(total)}</div>
+      </div>
+      <div class="stat-card"><div class="stat-label">Projects with data</div><div class="stat-value">${projectCount}</div></div>
+      <div class="stat-card"><div class="stat-label">Line items</div><div class="stat-value">${items.length}</div></div>
+    </div>
+  `));
+
+  if(items.length === 0){
+    wrap.appendChild(el(`<div class="empty-state"><div class="big">No ${label} data yet</div><div>Upload or add ${label} line items in a project to see the portfolio view here.</div></div>`));
+    return wrap;
   }
-  return card;
-}
 
-function ConsolidatedPnLView(){
-  const wrap = el(`<div></div>`);
-  const pnlItems = state.lineItems.filter(i => i.statement_type === 'pnl');
-  const total = pnlItems.reduce((s,i) => s + Number(i.amount), 0);
-  wrap.appendChild(el(`
-    <div class="stat-grid">
-      <div class="stat-card"><div class="stat-label">Total Net PnL</div><div class="stat-value ${total>=0?'pos':'neg'}">${fmtMoney(total)}</div></div>
-      <div class="stat-card"><div class="stat-label">Projects with PnL data</div><div class="stat-value">${new Set(pnlItems.map(i=>i.project_id)).size}</div></div>
-      <div class="stat-card"><div class="stat-label">Line items</div><div class="stat-value">${pnlItems.length}</div></div>
+  // ===== 2. Trend — how did we get to that number, over time? =====
+  const dated = items.filter(i => i.period);
+  if(dated.length > 0){
+    const byMonth = {};
+    dated.forEach(i => { const m = i.period.slice(0,7); byMonth[m] = (byMonth[m]||0) + Number(i.amount); });
+    const months = Object.keys(byMonth).sort();
+    const trendCard = el(`
+      <div class="card">
+        <div class="card-title">${label} trend <span style="font-weight:400;font-size:12px;color:var(--grey);">— monthly, across all projects</span></div>
+        ${chartCanvas(190)}
+      </div>
+    `);
+    wrap.appendChild(trendCard);
+    mountLineChart(
+      trendCard.querySelector('canvas'), 'consol-trend-'+statementType,
+      months.map(m => fmtPeriod(m+'-01')), months.map(m => byMonth[m]),
+      total >= 0 ? '#6FCF97' : '#E2807A'
+    );
+  }
+
+  // ===== 3. Comparison — which projects are driving that trend? =====
+  const byProject = {};
+  items.forEach(i => { const pname = i.projects?.name || 'Unknown'; byProject[pname] = (byProject[pname]||0) + Number(i.amount); });
+  const projectRows = Object.entries(byProject).sort((a,b) => b[1]-a[1]);
+  const compareCard = el(`
+    <div class="card">
+      <div class="card-title">${label} by project <span style="font-weight:400;font-size:12px;color:var(--grey);">— who's carrying the portfolio</span></div>
+      ${chartCanvas(Math.max(120, projectRows.length * 38))}
     </div>
-  `));
-  wrap.appendChild(byProjectBreakdownTable(pnlItems, 'Net PnL'));
-  wrap.appendChild(StatementTable(pnlItems, 'pnl'));
+  `);
+  wrap.appendChild(compareCard);
+  mountBarChart(
+    compareCard.querySelector('canvas'), 'consol-byproj-'+statementType,
+    projectRows.map(([n]) => n), projectRows.map(([,v]) => v),
+    projectRows.map(([,v]) => v >= 0 ? '#6FCF97' : '#E2807A'), true
+  );
+
+  // ===== 4. Detail — full transparency, List or Grid =====
+  const detailHeader = el(`
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <div class="card-title" style="margin:0;">Detail</div>
+      <div style="display:flex; border:1px solid var(--line); border-radius:5px; overflow:hidden;">
+        <button type="button" id="consol-view-list" class="btn pill small ${state.viewMode==='list'?'':'secondary'}" style="border:none; border-radius:0;">List</button>
+        <button type="button" id="consol-view-grid" class="btn pill small ${state.viewMode==='grid'?'':'secondary'}" style="border:none; border-radius:0;">Grid</button>
+      </div>
+    </div>
+  `);
+  detailHeader.querySelector('#consol-view-list').addEventListener('click', () => { state.viewMode = 'list'; render(); });
+  detailHeader.querySelector('#consol-view-grid').addEventListener('click', () => { state.viewMode = 'grid'; render(); });
+  wrap.appendChild(detailHeader);
+
+  wrap.appendChild(
+    state.viewMode === 'grid'
+      ? MatrixGridView(items, statementType, statementType === 'cashflow' ? getConsolidatedVirtualProject() : undefined)
+      : StatementTable(items, statementType)
+  );
+
   return wrap;
 }
 
-function ConsolidatedCashflowView(){
-  const wrap = el(`<div></div>`);
-  const cfItems = state.lineItems.filter(i => i.statement_type === 'cashflow');
-  const total = cfItems.reduce((s,i) => s + Number(i.amount), 0);
-  wrap.appendChild(el(`
-    <div class="stat-grid">
-      <div class="stat-card"><div class="stat-label">Total Net Cashflow</div><div class="stat-value ${total>=0?'pos':'neg'}">${fmtMoney(total)}</div></div>
-      <div class="stat-card"><div class="stat-label">Projects with Cashflow data</div><div class="stat-value">${new Set(cfItems.map(i=>i.project_id)).size}</div></div>
-      <div class="stat-card"><div class="stat-label">Line items</div><div class="stat-value">${cfItems.length}</div></div>
-    </div>
-  `));
-  wrap.appendChild(byProjectBreakdownTable(cfItems, 'Net Cashflow'));
-  wrap.appendChild(StatementTable(cfItems, 'cashflow'));
-  return wrap;
-}
+function ConsolidatedPnLView(){ return buildConsolidatedStatementView('pnl', 'PnL'); }
+function ConsolidatedCashflowView(){ return buildConsolidatedStatementView('cashflow', 'Cashflow'); }
 
 function ConsolidatedAnalysisView(){
   const wrap = el(`<div></div>`);
@@ -2712,6 +2829,38 @@ function ConsolidatedAnalysisView(){
       </div>
     </div>
   `));
+
+  // ===== Budget vs Actual by project — visual comparison before the alert detail =====
+  const budgetByProject = {}, actualByProject = {};
+  state.projects.forEach(p => {
+    const projBudget = allBudgetItems.filter(b => b.project_id === p.id);
+    budgetByProject[p.name] = projBudget.reduce((s,b) => s + Number(b.budget_amount), 0);
+    actualByProject[p.name] = projBudget.reduce((s,b) => {
+      const catLower = b.category.trim().toLowerCase();
+      return s + state.lineItems
+        .filter(i => {
+          if(i.project_id !== p.id || i.statement_type !== 'pnl') return false;
+          const cat = (i.category || '').trim().toLowerCase();
+          const sub = (i.subcategory || '').trim().toLowerCase();
+          return cat === catLower || sub === catLower;
+        })
+        .reduce((sum,i) => sum + Math.abs(Number(i.amount)), 0);
+    }, 0);
+  });
+  const projNames = state.projects.filter(p => budgetByProject[p.name] > 0).map(p => p.name);
+  if(projNames.length > 0){
+    const budgetChartCard = el(`
+      <div class="card">
+        <div class="card-title">Budget vs Actual by project <span style="font-weight:400;font-size:12px;color:var(--grey);">— where is spend tracking against plan</span></div>
+        ${chartCanvas(220)}
+      </div>
+    `);
+    wrap.appendChild(budgetChartCard);
+    mountGroupedBarChart(budgetChartCard.querySelector('canvas'), 'consol-budget-vs-actual', projNames, [
+      { label: 'Budget', data: projNames.map(n => budgetByProject[n]), backgroundColor: '#5266EB', borderRadius: 4 },
+      { label: 'Actual', data: projNames.map(n => actualByProject[n]), backgroundColor: '#6FCF97', borderRadius: 4 },
+    ]);
+  }
 
   const alertsCard = el(`<div class="card"><div class="card-title">Alerts across all projects</div></div>`);
   if(portfolioAlerts.length === 0){

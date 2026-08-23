@@ -113,6 +113,7 @@
   .btn.secondary{ background:var(--panel-alt); color:var(--text); border:none; }
   .btn.small{ padding:8px 16px 8px 18px; font-size:12px; }
   .btn:disabled{ opacity:0.4; cursor:not-allowed; }
+  .btn.pill{ border-radius:999px; padding:9px 20px; }
 
   .card{ background:var(--panel); border:none; border-radius:12px; padding:22px 24px; margin-bottom:20px; }
   .card-title{ font-size:14px; font-weight:600; margin:0 0 14px 0; }
@@ -1200,8 +1201,8 @@ function MainPanel(){
         <div class="page-sub">${isConsolidated ? 'All projects — PnL & Cashflow combined' : (project.description || 'Project PnL & Cashflow')}</div>
       </div>
       <div style="display:flex; gap:8px;">
-        ${(!isConsolidated && isAdmin) ? `<button class="btn secondary" id="edit-project-btn">Edit Project</button>` : ''}
-        ${!isConsolidated ? `<button class="btn" id="upload-btn">+ Upload data</button>` : ''}
+        ${(!isConsolidated && isAdmin) ? `<button class="btn secondary pill" id="edit-project-btn">Edit Project</button>` : ''}
+        ${!isConsolidated ? `<button class="btn pill" id="upload-btn">+ Upload data</button>` : ''}
       </div>
     </div>
   `);
@@ -1804,7 +1805,7 @@ function BudgetView(project){
         <thead><tr><th>Category</th><th class="num">Budget</th><th class="num">Actual</th><th>Usage</th><th class="num">Variance</th>${isAdmin ? '<th></th>' : ''}</tr></thead>
         <tbody>
           ${rowsHtml}
-          <tr class="group-row"><td class="cat">Subtotal — COGS</td><td class="num">${fmtMoney(cogsTotal)}</td><td></td><td></td><td></td>${isAdmin?'<td></td>':''}</tr>
+          <tr class="group-row"><td class="cat">Subtotal — COGS <span style="font-weight:400;font-size:11px;color:var(--grey);">(Cost of Goods Sold)</span></td><td class="num">${fmtMoney(cogsTotal)}</td><td></td><td></td><td></td>${isAdmin?'<td></td>':''}</tr>
         </tbody>
       </table>
     `);
@@ -1840,7 +1841,7 @@ function BudgetView(project){
       <div class="card-title">Total Project Cost</div>
       <table class="ledger">
         <tbody>
-          <tr><td class="cat">Subtotal — COGS</td><td class="num">${fmtMoney(cogsTotal)}</td></tr>
+          <tr><td class="cat">Subtotal — COGS <span style="font-weight:400;font-size:11px;color:var(--grey);">(Cost of Goods Sold)</span></td><td class="num">${fmtMoney(cogsTotal)}</td></tr>
           <tr class="total-row"><td class="cat">Total Project Cost</td><td class="num">${fmtMoney(totalProjectCost)}</td></tr>
         </tbody>
       </table>
@@ -1853,7 +1854,7 @@ function BudgetView(project){
       <table class="ledger">
         <tbody>
           <tr><td class="cat">Contract Value (excl. SST)</td><td class="num">${fmtMoney(contractValue)}</td></tr>
-          <tr><td class="cat">SST (${sstPercent}%)</td><td class="num">${fmtMoney(sstAmount)}</td></tr>
+          <tr><td class="cat">SST <span style="font-weight:400;font-size:11px;color:var(--grey);">(Sales &amp; Service Tax)</span> (${sstPercent}%)</td><td class="num">${fmtMoney(sstAmount)}</td></tr>
           <tr class="total-row"><td class="cat">Total Contract Value (incl. SST)</td><td class="num">${fmtMoney(totalContractValue)}</td></tr>
           <tr><td class="cat">Deposit Required (${depositPercent}%)</td><td class="num">${fmtMoney(depositAmount)}</td></tr>
         </tbody>
@@ -1955,7 +1956,7 @@ function PerformanceView(project){
             <div class="stat-value ${sv>=0?'pos':'neg'}">${fmtMoney(sv)}</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">SPI — Schedule Performance</div>
+            <div class="stat-label">SPI — Schedule Performance Index</div>
             <div class="stat-value ${spi===null?'':(spi>=1?'pos':'neg')}">${spi===null ? '—' : spi.toFixed(2)}</div>
           </div>
         </div>
@@ -2301,7 +2302,7 @@ function EditProjectModal(){
           </div>
           <div class="field"><label>Contract value (RM, excl. SST)</label><input type="number" step="0.01" name="contract_value" value="${d.contract_value}" placeholder="e.g. 298000"></div>
           <div class="field-row">
-            <div class="field"><label>SST %</label><input type="number" step="0.01" name="sst_percent" value="${d.sst_percent}"></div>
+            <div class="field"><label>SST % (Sales &amp; Service Tax)</label><input type="number" step="0.01" name="sst_percent" value="${d.sst_percent}"></div>
             <div class="field"><label>Deposit %</label><input type="number" step="0.01" name="deposit_percent" value="${d.deposit_percent}"></div>
           </div>
           <div class="field"><label>Tax %</label><input type="number" step="0.01" name="tax_percent" value="${d.tax_percent}"></div>

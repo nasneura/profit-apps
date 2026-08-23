@@ -11,25 +11,25 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root{
-    --ink:#101A2C;
-    --ink-soft:#16233A;
-    --paper:#F7F5EF;
-    --paper-dim:#EFEBE0;
-    --stripe:#ECECE9;
-    --line:#DCD8CB;
-    --teal:#2F8F86;
-    --teal-soft:#E4F1EF;
-    --rust:#B23B3B;
-    --rust-soft:#F7E4E1;
-    --gold:#B96E17;
-    --gold-soft:#FCEEDA;
-    --green:#4C8C5C;
-    --green-soft:#E3EEE3;
-    --navy-light:#E3E9F1;
-    --grey:#6B6A63;
-    --text:#2B2A26;
-    --panel:#FFFFFF;
-    --panel-alt:#F7F5EF;
+    --ink:#171721;
+    --ink-soft:#0F0F17;
+    --paper:#0F0F17;
+    --paper-dim:#1F1F2E;
+    --stripe:#262436;
+    --line:#26243A;
+    --teal:#6FCF97;
+    --teal-soft:rgba(111,207,151,0.14);
+    --rust:#E2807A;
+    --rust-soft:rgba(226,128,122,0.14);
+    --gold:#5266EB;
+    --gold-soft:rgba(82,102,235,0.14);
+    --green:#6FCF97;
+    --green-soft:rgba(111,207,151,0.14);
+    --navy-light:#1F1F2E;
+    --grey:#6E6C82;
+    --text:#F2F0EA;
+    --panel:#1F1F2E;
+    --panel-alt:#262436;
   }
   *{box-sizing:border-box;}
   body{
@@ -46,7 +46,7 @@
     width:260px;
     flex-shrink:0;
     background:var(--ink);
-    color:var(--paper);
+    color:var(--text);
     padding:28px 20px;
     display:flex;
     flex-direction:column;
@@ -62,36 +62,35 @@
     gap:8px;
   }
   .brand .mark{ color:var(--gold); font-size:26px; }
-  .brand-sub{ font-size:11px; color:#8A8578; letter-spacing:0.08em; text-transform:uppercase; margin-top:2px; }
+  .brand-sub{ font-size:11px; color:#6E6C82; letter-spacing:0.08em; text-transform:uppercase; margin-top:2px; }
 
   .nav-section-label{
-    font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:#726D5F;
+    font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:#4A4860;
     margin-bottom:8px; margin-top:4px;
   }
   .project-list{ display:flex; flex-direction:column; gap:2px; }
   .project-item{
-    padding:9px 10px; border-radius:4px; cursor:pointer; font-size:14px;
-    color:#C9C4B6; display:flex; justify-content:space-between; align-items:center;
-    border-left:2px solid transparent;
+    padding:9px 12px; border-radius:10px; cursor:pointer; font-size:13px;
+    color:var(--grey); display:flex; justify-content:space-between; align-items:center;
   }
   .project-item:hover{ background:rgba(255,255,255,0.05); }
-  .project-item.active{ background:rgba(184,145,43,0.14); color:var(--paper); border-left:2px solid var(--gold); }
+  .project-item.active{ background:var(--panel-alt); color:var(--text); }
   .project-item.consolidated{ font-weight:600; }
 
   .btn-new-project{
-    margin-top:6px; font-size:13px; color:var(--gold); background:none; border:1px dashed #5A5548;
+    margin-top:6px; font-size:13px; color:var(--gold); background:none; border:1px dashed #3A3850;
     padding:8px 10px; border-radius:4px; cursor:pointer; text-align:left; font-family:inherit;
   }
   .btn-new-project:hover{ border-color:var(--gold); }
 
-  .sidebar-footer{ margin-top:auto; border-top:1px solid #3A423E; padding-top:16px; font-size:12px; color:#8A8578; }
+  .sidebar-footer{ margin-top:auto; border-top:1px solid #26243A; padding-top:16px; font-size:12px; color:#6E6C82; }
   .user-row{ display:flex; justify-content:space-between; align-items:center; }
   .role-badge{
     font-size:10px; text-transform:uppercase; letter-spacing:0.05em; padding:2px 6px; border-radius:3px;
-    background:var(--gold-soft); color:#7A5E14; font-weight:600;
+    background:var(--gold-soft); color:#B8C0FF; font-weight:600;
   }
-  .role-badge.member{ background:#3A423E; color:#B8B3A5; }
-  .signout{ background:none; border:none; color:#8A8578; cursor:pointer; font-size:12px; text-decoration:underline; padding:0; margin-top:8px; font-family:inherit; }
+  .role-badge.member{ background:#262436; color:#9C99B0; }
+  .signout{ background:none; border:none; color:#6E6C82; cursor:pointer; font-size:12px; text-decoration:underline; padding:0; margin-top:8px; font-family:inherit; }
 
   /* ===== Main ===== */
   .main{ flex:1; background:var(--paper); border-radius:18px 0 0 18px; padding:36px 44px; overflow-y:auto; }
@@ -107,20 +106,20 @@
   .tab.active{ color:var(--ink); border-bottom-color:var(--teal); }
 
   .btn{
-    font-family:'Lexend',sans-serif; font-size:13px; font-weight:600; padding:9px 16px; border-radius:5px;
-    border:1px solid var(--ink); background:var(--ink); color:var(--paper); cursor:pointer;
+    font-family:'Lexend',sans-serif; font-size:13px; font-weight:600; padding:14px 24px 14px 26px; border-radius:0 32px 32px 0;
+    border:none; background:var(--gold); color:#fff; cursor:pointer;
   }
   .btn:hover{ opacity:0.88; }
-  .btn.secondary{ background:transparent; color:var(--ink); border:1px solid var(--line); }
-  .btn.small{ padding:6px 11px; font-size:12px; }
+  .btn.secondary{ background:var(--panel-alt); color:var(--text); border:none; }
+  .btn.small{ padding:8px 16px 8px 18px; font-size:12px; }
   .btn:disabled{ opacity:0.4; cursor:not-allowed; }
 
-  .card{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:22px 24px; margin-bottom:20px; }
+  .card{ background:var(--panel); border:none; border-radius:12px; padding:22px 24px; margin-bottom:20px; }
   .card-title{ font-size:14px; font-weight:600; margin:0 0 14px 0; }
 
   input[type=text], input[type=email], input[type=password], input[type=number], select, textarea{
     font-family:'Lexend',sans-serif; font-size:14px; padding:9px 11px; border:1px solid var(--line);
-    border-radius:5px; background:#fff; width:100%; color:var(--text);
+    border-radius:8px; background:var(--panel-alt); width:100%; color:var(--text);
   }
   label{ font-size:12px; font-weight:600; color:var(--grey); text-transform:uppercase; letter-spacing:0.03em; display:block; margin-bottom:5px; }
   .field{ margin-bottom:14px; }
@@ -129,25 +128,25 @@
 
   /* Summary stat cards */
   .stat-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:22px; }
-  .stat-card{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:16px 18px; }
+  .stat-card{ background:var(--panel); border:none; border-radius:12px; padding:16px 18px; }
   .stat-label{ font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--grey); margin-bottom:6px; }
   .stat-value{ font-family:'Lexend',sans-serif; font-variant-numeric:tabular-nums; font-size:22px; font-weight:600; }
   .stat-value.pos{ color:var(--teal); }
   .stat-value.neg{ color:var(--rust); }
 
   /* Ledger table */
-  table.ledger{ width:100%; border-collapse:collapse; font-size:13.5px; border-radius:8px; overflow:hidden; }
-  table.ledger thead tr{ background:var(--ink); }
+  table.ledger{ width:100%; border-collapse:collapse; font-size:13.5px; border-radius:12px; overflow:hidden; }
+  table.ledger thead tr{ background:transparent; }
   table.ledger th{
-    text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:#fff;
-    padding:12px 14px; font-weight:700; border-bottom:none;
+    text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:0.05em; color:var(--grey);
+    padding:10px 14px; font-weight:600; border-bottom:1px solid var(--line);
   }
   table.ledger th.num, table.ledger td.num{ text-align:right; }
   table.ledger td{ padding:12px 14px; border-bottom:1px solid var(--line); font-family:'Lexend',sans-serif; font-variant-numeric:tabular-nums; }
   table.ledger td.cat{ font-family:'Lexend',sans-serif; font-weight:500; }
   table.ledger tr.group-row td{ background:var(--navy-light); font-weight:700; font-family:'Lexend',sans-serif; }
   table.ledger tr.group-row td.num{ font-family:'Lexend',sans-serif; font-variant-numeric:tabular-nums; font-weight:700; }
-  table.ledger tr.total-row td{ border-top:2px solid var(--ink); border-bottom:none; font-weight:700; font-family:'Lexend',sans-serif; font-variant-numeric:tabular-nums; padding-top:14px; background:transparent; }
+  table.ledger tr.total-row td{ border-top:1px solid var(--line); border-bottom:none; font-weight:700; font-family:'Lexend',sans-serif; font-variant-numeric:tabular-nums; padding-top:14px; background:transparent; }
   table.ledger tr.total-row td.cat{ font-family:'Lexend',sans-serif; }
   .amt-pos{ color:var(--teal); }
   .amt-neg{ color:var(--rust); }
@@ -156,7 +155,7 @@
     border:1px solid transparent; background:transparent; padding:3px 4px; border-radius:3px; color:inherit;
   }
   .grid-cell-input:hover{ border-color:var(--line); }
-  .grid-cell-input:focus{ border-color:var(--teal); background:#fff; outline:none; }
+  .grid-cell-input:focus{ border-color:var(--gold); background:var(--panel-alt); outline:none; }
 
   .empty-state{ text-align:center; padding:60px 20px; color:var(--grey); }
   .empty-state .big{ font-family:'Lexend',sans-serif; font-weight:700; font-size:20px; color:var(--ink); margin-bottom:8px; }
@@ -166,8 +165,8 @@
   .upload-meta{ color:var(--grey); font-size:12px; }
   .pill{ font-size:11px; letter-spacing:0.01em; padding:3px 10px; border-radius:999px; font-weight:600; }
   .pill.pnl{ background:var(--teal-soft); color:var(--teal); }
-  .pill.cashflow{ background:var(--gold-soft); color:#7A5E14; }
-  .pill.forecast{ background:#EDE4F5; color:#6B4A94; font-size:9px; padding:1px 6px; }
+  .pill.cashflow{ background:var(--gold-soft); color:#B8C0FF; }
+  .pill.forecast{ background:rgba(148,112,196,0.18); color:#C4A8E8; font-size:9px; padding:1px 6px; }
 
   .mapping-row{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; align-items:end; padding:10px 0; border-bottom:1px solid var(--paper-dim); }
   .mapping-preview{ font-size:12px; color:var(--grey); font-family:'Lexend',sans-serif; font-variant-numeric:tabular-nums; }
@@ -190,7 +189,7 @@
   .info-msg{ background:var(--teal-soft); color:var(--teal); padding:9px 12px; border-radius:5px; font-size:12.5px; margin-bottom:14px; }
 
   .modal-overlay{ position:fixed; inset:0; background:rgba(28,35,33,0.55); display:flex; align-items:center; justify-content:center; z-index:50; }
-  .modal{ background:#fff; border-radius:10px; padding:26px 28px; width:420px; max-height:85vh; overflow-y:auto; }
+  .modal{ background:var(--panel); border-radius:14px; padding:26px 28px; width:420px; max-height:85vh; overflow-y:auto; }
   .modal-title{ font-family:'Lexend',sans-serif; font-weight:700; font-size:19px; margin:0 0 16px 0; }
   .modal-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:18px; }
 
@@ -201,7 +200,7 @@
   .file-drop.has-file{ border-color:var(--teal); color:var(--teal); }
 
   ::-webkit-scrollbar{ width:8px; }
-  ::-webkit-scrollbar-thumb{ background:#4A524E; border-radius:4px; }
+  ::-webkit-scrollbar-thumb{ background:#3A3850; border-radius:4px; }
 </style>
 </head>
 <body>
@@ -1225,6 +1224,7 @@ function MainPanel(){
           <div class="tab ${state.activeTab==='forecast'?'active':''}" data-tab="forecast">Forecast</div>
           <div class="tab ${state.activeTab==='budget'?'active':''}" data-tab="budget">Budget</div>
           <div class="tab ${state.activeTab==='performance'?'active':''}" data-tab="performance">Performance Analysis</div>
+          <div class="tab ${state.activeTab==='alerts'?'active':''}" data-tab="alerts">Alerts</div>
           <div class="tab ${state.activeTab==='uploads'?'active':''}" data-tab="uploads">Uploads</div>
         </div>
         <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
@@ -1234,7 +1234,7 @@ function MainPanel(){
               <button type="button" id="view-grid-btn" class="btn small ${state.viewMode==='grid'?'':'secondary'}" style="border:none; border-radius:0;">Grid</button>
             </div>
           ` : ''}
-          ${(state.activeTab!=='uploads' && state.activeTab!=='forecast' && state.activeTab!=='budget' && state.activeTab!=='performance' && !(showViewToggle && state.viewMode==='grid') && periods.length>0) ? `
+          ${(state.activeTab!=='uploads' && state.activeTab!=='forecast' && state.activeTab!=='budget' && state.activeTab!=='performance' && state.activeTab!=='alerts' && !(showViewToggle && state.viewMode==='grid') && periods.length>0) ? `
             <select id="period-filter" style="width:auto;padding:6px 9px;font-size:12.5px;">
               <option value="all" ${state.periodFilter==='all'?'selected':''}>All months</option>
               ${periods.map(p => `<option value="${p}" ${state.periodFilter===p?'selected':''}>${fmtPeriod(p+'-01')}</option>`).join('')}
@@ -1268,6 +1268,7 @@ function MainPanel(){
     if(state.activeTab === 'forecast') main.appendChild(ForecastView(project));
     if(state.activeTab === 'budget') main.appendChild(BudgetView(project));
     if(state.activeTab === 'performance') main.appendChild(PerformanceView(project));
+    if(state.activeTab === 'alerts') main.appendChild(AlertsView(project));
     if(state.activeTab === 'uploads') main.appendChild(UploadsView());
   } else {
     main.appendChild(ConsolidatedView());
@@ -1338,6 +1339,27 @@ function SummaryView(items, project){
 
     if(monthRows.length > 0){
       const monthCard = el(`<div class="card"><div class="card-title">Monthly Cash Flow</div></div>`);
+
+      // Visual bar chart — balance trajectory at a glance, color-coded pos/neg
+      const maxAbs = Math.max(...monthRows.map(r => Math.abs(r.balance)), 1);
+      const chartH = 100;
+      const chart = el(`
+        <div style="display:flex; align-items:flex-end; gap:10px; height:${chartH}px; padding:10px 4px 4px; margin-bottom:14px; border-bottom:1px solid var(--line);">
+          ${monthRows.map(r => {
+            const h = Math.max(3, Math.round((Math.abs(r.balance) / maxAbs) * (chartH - 20)));
+            const color = r.balance >= 0 ? 'var(--teal)' : 'var(--rust)';
+            return `
+              <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%;">
+                <div style="font-size:9.5px; color:var(--grey); margin-bottom:3px; white-space:nowrap;">${fmtMoney(r.balance)}</div>
+                <div style="width:60%; height:${h}px; background:${color}; border-radius:3px 3px 0 0;"></div>
+                <div style="font-size:9px; color:var(--grey); margin-top:4px;">${fmtPeriod(r.month+'-01').split(' ')[0]}</div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `);
+      monthCard.appendChild(chart);
+
       const table = el(`
         <table class="ledger">
           <thead><tr><th>Month</th><th class="num">Net</th><th class="num">Cumulative Balance</th></tr></thead>
@@ -1643,6 +1665,71 @@ function StatementTable(items, type){
   return wrap;
 }
 
+// ===== Rule-based Alerts (no paid AI — pure logic against known thresholds) =====
+function computeAlerts(project, lineItems, budgetItems){
+  const alerts = [];
+
+  // 1. Budget over/near limit per category
+  (budgetItems || []).forEach(b => {
+    const actual = actualFor(b.category);
+    const budget = Number(b.budget_amount);
+    if(budget <= 0) return;
+    const pct = (actual / budget) * 100;
+    if(pct > 100){
+      alerts.push({ severity: 'critical', title: `${b.category} is over budget`, detail: `${fmtMoney(actual)} spent against ${fmtMoney(budget)} budgeted (${pct.toFixed(0)}%).` });
+    } else if(pct >= 85){
+      alerts.push({ severity: 'warning', title: `${b.category} is near budget limit`, detail: `${fmtMoney(actual)} spent against ${fmtMoney(budget)} budgeted (${pct.toFixed(0)}%).` });
+    }
+  });
+
+  // 2. Cash flow: min balance negative
+  const cashItems = lineItems.filter(i => i.statement_type === 'cashflow' && i.period);
+  if(cashItems.length > 0){
+    const openingBalance = Number(project.opening_balance) || 0;
+    const byMonth = {};
+    cashItems.forEach(i => { const m = i.period.slice(0,7); byMonth[m] = (byMonth[m]||0) + Number(i.amount); });
+    const months = Object.keys(byMonth).sort();
+    let running = openingBalance, minBalance = openingBalance, minMonth = null;
+    months.forEach(m => {
+      running += byMonth[m];
+      if(running < minBalance){ minBalance = running; minMonth = m; }
+    });
+    if(minBalance < 0){
+      alerts.push({ severity: 'critical', title: 'Cash balance goes negative', detail: `Projected minimum balance is ${fmtMoney(minBalance)}${minMonth ? ' around ' + fmtPeriod(minMonth+'-01') : ''} — external funding or timing adjustment may be needed.` });
+    } else if(minBalance < openingBalance * 0.1 && openingBalance > 0){
+      alerts.push({ severity: 'warning', title: 'Cash balance runs very low', detail: `Projected minimum balance is ${fmtMoney(minBalance)}, close to zero relative to opening balance.` });
+    }
+  }
+
+  // 3. Margin thin/negative (needs budget + contract value)
+  if((budgetItems || []).length > 0 && Number(project.contract_value) > 0){
+    const cogsTotal = budgetItems.reduce((s,b) => s + Number(b.budget_amount), 0);
+    const grossProfit = Number(project.contract_value) - cogsTotal;
+    const taxAmount = grossProfit * (Number(project.tax_percent)||0) / 100;
+    const netProfit = grossProfit - taxAmount;
+    const margin = Number(project.contract_value) > 0 ? (netProfit / Number(project.contract_value) * 100) : 0;
+    if(margin < 0){
+      alerts.push({ severity: 'critical', title: 'Project margin is negative', detail: `Projected net margin is ${margin.toFixed(1)}% — this project is forecast to lose money at current budget.` });
+    } else if(margin < 10){
+      alerts.push({ severity: 'warning', title: 'Project margin is thin', detail: `Projected net margin is only ${margin.toFixed(1)}% — limited buffer for cost overruns.` });
+    }
+  }
+
+  // 4. Spend pace ahead of reported progress
+  const pc = Number(project.percent_complete) || 0;
+  if((budgetItems || []).length > 0 && pc > 0){
+    const cogsTotal = budgetItems.reduce((s,b) => s + Number(b.budget_amount), 0);
+    const totalActual = budgetItems.reduce((s,b) => s + actualFor(b.category), 0);
+    const spendPct = cogsTotal > 0 ? (totalActual / cogsTotal) * 100 : 0;
+    if(spendPct - pc > 20){
+      alerts.push({ severity: 'warning', title: 'Spend is ahead of reported progress', detail: `${spendPct.toFixed(0)}% of budget spent, but project is only ${pc}% complete — cost may be running ahead of actual work done.` });
+    }
+  }
+
+  const order = { critical: 0, warning: 1 };
+  return alerts.sort((a,b) => order[a.severity] - order[b.severity]);
+}
+
 function actualFor(category){
   const catLower = category.trim().toLowerCase();
   return state.lineItems
@@ -1689,13 +1776,23 @@ function BudgetView(project){
     const rowsHtml = budgetItems.map(b => {
       const actual = actualFor(b.category);
       const variance = Number(b.budget_amount) - actual;
-      const pct = cogsTotal > 0 ? (Number(b.budget_amount) / cogsTotal * 100) : 0;
+      const budgetAmt = Number(b.budget_amount);
+      const usagePct = budgetAmt > 0 ? (actual / budgetAmt * 100) : 0;
+      const barPct = Math.min(100, usagePct);
+      const barColor = usagePct > 100 ? 'var(--rust)' : usagePct >= 85 ? 'var(--gold)' : 'var(--teal)';
       return `<tr>
         <td class="cat">${b.category}</td>
         <td class="num">${fmtMoney(b.budget_amount)}</td>
         <td class="num" style="color:var(--grey);">${fmtMoney(actual)}</td>
+        <td style="min-width:120px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div style="flex:1; height:7px; background:var(--panel-alt); border-radius:4px; overflow:hidden;">
+              <div style="width:${barPct}%; height:100%; background:${barColor};"></div>
+            </div>
+            <span style="font-size:11px; color:${barColor}; font-weight:600; min-width:36px; text-align:right;">${usagePct.toFixed(0)}%</span>
+          </div>
+        </td>
         <td class="num ${variance>=0?'amt-pos':'amt-neg'}">${fmtMoney(variance)}</td>
-        <td class="num" style="color:var(--grey);">${pct.toFixed(1)}%</td>
         ${isAdmin ? `<td style="white-space:nowrap;">
           <button class="btn small secondary budget-edit" data-id="${b.id}" style="padding:3px 8px;font-size:11px;">Edit</button>
           <button class="btn small secondary budget-delete" data-id="${b.id}" style="padding:3px 8px;font-size:11px;">Delete</button>
@@ -1704,7 +1801,7 @@ function BudgetView(project){
     }).join('');
     const table = el(`
       <table class="ledger">
-        <thead><tr><th>Category</th><th class="num">Budget</th><th class="num">Actual</th><th class="num">Variance</th><th class="num">% of COGS</th>${isAdmin ? '<th></th>' : ''}</tr></thead>
+        <thead><tr><th>Category</th><th class="num">Budget</th><th class="num">Actual</th><th>Usage</th><th class="num">Variance</th>${isAdmin ? '<th></th>' : ''}</tr></thead>
         <tbody>
           ${rowsHtml}
           <tr class="group-row"><td class="cat">Subtotal — COGS</td><td class="num">${fmtMoney(cogsTotal)}</td><td></td><td></td><td></td>${isAdmin?'<td></td>':''}</tr>
@@ -1895,6 +1992,53 @@ function PerformanceView(project){
     </div>
   `));
 
+  return wrap;
+}
+
+function AlertsView(project){
+  const wrap = el(`<div></div>`);
+  const alerts = computeAlerts(project, state.lineItems, state.budgetItems || []);
+  const criticalCount = alerts.filter(a => a.severity === 'critical').length;
+  const warningCount = alerts.filter(a => a.severity === 'warning').length;
+
+  wrap.appendChild(el(`
+    <div class="stat-grid">
+      <div class="stat-card" style="background:${criticalCount>0 ? 'var(--rust-soft)' : 'var(--teal-soft)'};">
+        <div class="stat-label">Critical</div>
+        <div class="stat-value" style="color:${criticalCount>0 ? 'var(--rust)' : 'var(--teal)'};">${criticalCount}</div>
+      </div>
+      <div class="stat-card" style="background:${warningCount>0 ? 'var(--gold-soft)' : 'var(--teal-soft)'};">
+        <div class="stat-label">Warning</div>
+        <div class="stat-value" style="color:${warningCount>0 ? 'var(--gold)' : 'var(--teal)'};">${warningCount}</div>
+      </div>
+      <div class="stat-card" style="background:var(--teal-soft);">
+        <div class="stat-label">Status</div>
+        <div class="stat-value pos" style="font-size:16px;">${alerts.length === 0 ? 'All clear' : (criticalCount>0 ? 'Needs attention' : 'Watch list')}</div>
+      </div>
+    </div>
+  `));
+
+  if(alerts.length === 0){
+    wrap.appendChild(el(`<div class="empty-state"><div class="big">No issues detected</div><div>PROFIT checks budget limits, cash balance, margin, and spend pace automatically — nothing flagged right now.</div></div>`));
+    return wrap;
+  }
+
+  const list = el(`<div style="display:flex; flex-direction:column; gap:10px;"></div>`);
+  alerts.forEach(a => {
+    const isCritical = a.severity === 'critical';
+    const color = isCritical ? 'var(--rust)' : 'var(--gold)';
+    const bg = isCritical ? 'var(--rust-soft)' : 'var(--gold-soft)';
+    list.appendChild(el(`
+      <div class="card" style="margin-bottom:0; border-left:4px solid ${color}; background:${bg};">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+          <span style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:${color};">${a.severity}</span>
+          <span style="font-size:14px; font-weight:600;">${a.title}</span>
+        </div>
+        <div style="font-size:13px; color:var(--grey);">${a.detail}</div>
+      </div>
+    `));
+  });
+  wrap.appendChild(list);
   return wrap;
 }
 

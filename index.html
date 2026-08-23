@@ -1831,7 +1831,15 @@ function computeAlerts(project, lineItems, budgetItems){
 function actualFor(category){
   const catLower = category.trim().toLowerCase();
   return state.lineItems
-    .filter(i => i.category && i.category.trim().toLowerCase() === catLower)
+    .filter(i => {
+      if(i.statement_type !== 'pnl') return false; // Actual cost = accounting spend (PnL/Expenses), not cash timing
+      const cat = (i.category || '').trim().toLowerCase();
+      const sub = (i.subcategory || '').trim().toLowerCase();
+      // Budget categories are set against the specific cost item (e.g. "Direct Manpower"),
+      // which in uploaded/entered line items usually lives in Subcategory (Category holds the
+      // top-level Revenue/Expenses grouping) — match either field so both data shapes work.
+      return cat === catLower || sub === catLower;
+    })
     .reduce((s,i) => s + Math.abs(Number(i.amount)), 0);
 }
 
@@ -2668,7 +2676,13 @@ function ConsolidatedAnalysisView(){
   const totalActual = allBudgetItems.reduce((s,b) => {
     const catLower = b.category.trim().toLowerCase();
     const actual = state.lineItems
-      .filter(i => i.project_id === b.project_id && i.category && i.category.trim().toLowerCase() === catLower)
+      .filter(i => {
+        if(i.project_id !== b.project_id) return false;
+        if(i.statement_type !== 'pnl') return false;
+        const cat = (i.category || '').trim().toLowerCase();
+        const sub = (i.subcategory || '').trim().toLowerCase();
+        return cat === catLower || sub === catLower;
+      })
       .reduce((sum,i) => sum + Math.abs(Number(i.amount)), 0);
     return s + actual;
   }, 0);

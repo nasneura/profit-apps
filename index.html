@@ -1006,7 +1006,7 @@ function ResetPasswordScreen(){
             </button>
           </div>
         </div>
-        <button type="submit" class="btn" style="width:100%;margin-top:6px;">Set new password</button>
+        <button type="submit" class="btn pill" style="width:100%;margin-top:6px;">Set new password</button>
       </form>
     </div>
   `);
@@ -1059,7 +1059,7 @@ function AuthScreen(){
             </button>
           </div>
         </div>
-        <button type="submit" class="btn" style="width:100%;margin-top:6px;">${state.authMode==='signup' ? 'Sign up' : 'Log in'}</button>
+        <button type="submit" class="btn pill" style="width:100%;margin-top:6px;">${state.authMode==='signup' ? 'Sign up' : 'Log in'}</button>
       </form>
       ${state.authMode==='login' ? `<div class="auth-toggle" id="forgot-password-link" style="margin-top:8px;">Forgot password?</div>` : ''}
       <div class="auth-toggle" id="auth-toggle">${state.authMode==='signup' ? 'Already have an account? Log in' : 'No account yet? Sign up'}</div>
@@ -1123,8 +1123,8 @@ function ConfirmDialogModal(){
         <h3 class="modal-title">${d.title}</h3>
         <div style="font-size:14px;color:var(--text);line-height:1.5;">${d.message}</div>
         <div class="modal-actions">
-          <button type="button" class="btn secondary" id="confirm-cancel">Cancel</button>
-          <button type="button" class="btn" id="confirm-ok" style="${d.danger ? 'background:var(--rust);border-color:var(--rust);' : ''}">${d.confirmLabel}</button>
+          <button type="button" class="btn pill secondary" id="confirm-cancel">Cancel</button>
+          <button type="button" class="btn pill" id="confirm-ok" style="${d.danger ? 'background:var(--rust);border-color:var(--rust);' : ''}">${d.confirmLabel}</button>
         </div>
       </div>
     </div>
@@ -1157,7 +1157,7 @@ function Sidebar(){
         <div class="project-list">
           ${state.projects.map(p => `<div class="project-item ${state.selectedProjectId===p.id?'active':''}" data-id="${p.id}">${p.name}</div>`).join('')}
         </div>
-        ${isAdmin ? `<button class="btn-new-project" id="new-project-btn">+ New project</button>` : ''}
+        ${isAdmin ? `<button class="btn pill-new-project" id="new-project-btn">+ New project</button>` : ''}
       </div>
       <div class="sidebar-footer">
         <div class="user-row">
@@ -1231,8 +1231,8 @@ function MainPanel(){
         <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
           ${showViewToggle ? `
             <div style="display:flex; border:1px solid var(--line); border-radius:5px; overflow:hidden;">
-              <button type="button" id="view-list-btn" class="btn small ${state.viewMode==='list'?'':'secondary'}" style="border:none; border-radius:0;">List</button>
-              <button type="button" id="view-grid-btn" class="btn small ${state.viewMode==='grid'?'':'secondary'}" style="border:none; border-radius:0;">Grid</button>
+              <button type="button" id="view-list-btn" class="btn pill small ${state.viewMode==='list'?'':'secondary'}" style="border:none; border-radius:0;">List</button>
+              <button type="button" id="view-grid-btn" class="btn pill small ${state.viewMode==='grid'?'':'secondary'}" style="border:none; border-radius:0;">Grid</button>
             </div>
           ` : ''}
           ${(state.activeTab!=='uploads' && state.activeTab!=='forecast' && state.activeTab!=='budget' && state.activeTab!=='performance' && state.activeTab!=='alerts' && !(showViewToggle && state.viewMode==='grid') && periods.length>0) ? `
@@ -1489,7 +1489,7 @@ function MatrixGridView(items, type, project){
       <div class="empty-state">
         <div class="big">No dated items to show in Grid view</div>
         <div>${items.length > 0 ? `You have ${items.length} item(s), but none have a Month set — Grid view needs a Month to build columns.` : 'Add line items with a Month set to see the grid view.'}</div>
-        ${items.length > 0 ? `<button class="btn small" id="grid-switch-list-btn" style="margin-top:12px;">Switch to List view</button>` : ''}
+        ${items.length > 0 ? `<button class="btn pill small" id="grid-switch-list-btn" style="margin-top:12px;">Switch to List view</button>` : ''}
       </div>
     `);
     const switchBtn = empty.querySelector('#grid-switch-list-btn');
@@ -1589,8 +1589,8 @@ function StatementTable(items, type){
 
   const addBar = el(`
     <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;">
-      <button class="btn small secondary" id="quick-fill-btn">+ Quick fill months</button>
-      <button class="btn small" id="add-line-item-btn">+ Add line item</button>
+      <button class="btn pill small secondary" id="quick-fill-btn">+ Quick fill months</button>
+      <button class="btn pill small" id="add-line-item-btn">+ Add line item</button>
     </div>
   `);
   addBar.querySelector('#add-line-item-btn').addEventListener('click', () => openAddLineItem(type));
@@ -1633,8 +1633,8 @@ function StatementTable(items, type){
         <td style="font-size:12px;color:var(--grey);">${fmtPeriod(r.period)}</td>
         <td class="num ${r.amount>=0?'amt-pos':'amt-neg'}">${fmtMoney(r.amount)}</td>
         <td style="white-space:nowrap;">
-          <button class="btn small secondary row-edit" data-id="${r.id}" style="padding:3px 8px;font-size:11px;">Edit</button>
-          <button class="btn small secondary row-delete" data-id="${r.id}" style="padding:3px 8px;font-size:11px;">Delete</button>
+          <button class="btn pill small secondary row-edit" data-id="${r.id}" style="padding:3px 8px;font-size:11px;">Edit</button>
+          <button class="btn pill small secondary row-delete" data-id="${r.id}" style="padding:3px 8px;font-size:11px;">Delete</button>
         </td>
       </tr>`;
     });
@@ -1763,7 +1763,7 @@ function BudgetView(project){
   const addBar = el(`
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
       <div class="card-title" style="margin:0;">Budget by Category</div>
-      ${isAdmin ? `<button class="btn small" id="add-budget-item-btn">+ Add budget line</button>` : ''}
+      ${isAdmin ? `<button class="btn pill small" id="add-budget-item-btn">+ Add budget line</button>` : ''}
     </div>
   `);
   if(isAdmin) addBar.querySelector('#add-budget-item-btn').addEventListener('click', openAddBudgetItem);
@@ -1795,8 +1795,8 @@ function BudgetView(project){
         </td>
         <td class="num ${variance>=0?'amt-pos':'amt-neg'}">${fmtMoney(variance)}</td>
         ${isAdmin ? `<td style="white-space:nowrap;">
-          <button class="btn small secondary budget-edit" data-id="${b.id}" style="padding:3px 8px;font-size:11px;">Edit</button>
-          <button class="btn small secondary budget-delete" data-id="${b.id}" style="padding:3px 8px;font-size:11px;">Delete</button>
+          <button class="btn pill small secondary budget-edit" data-id="${b.id}" style="padding:3px 8px;font-size:11px;">Edit</button>
+          <button class="btn pill small secondary budget-delete" data-id="${b.id}" style="padding:3px 8px;font-size:11px;">Delete</button>
         </td>` : ''}
       </tr>`;
     }).join('');
@@ -2162,7 +2162,7 @@ function UploadsView(){
         <div style="font-size:13px;color:var(--grey);margin-bottom:10px;">
           If Cashflow items were imported with Category/Subcategory swapped (e.g. "Client Payment" as Category instead of "Cash-In"), use this to fix them.
         </div>
-        <button class="btn small secondary" id="fix-cashflow-structure-btn">Fix Cashflow structure</button>
+        <button class="btn pill small secondary" id="fix-cashflow-structure-btn">Fix Cashflow structure</button>
       </div>
     `);
     maintCard.querySelector('#fix-cashflow-structure-btn').addEventListener('click', fixCashflowStructure);
@@ -2183,7 +2183,7 @@ function UploadsView(){
           ${u.period_label ? `<span class="upload-meta"> · ${u.period_label}</span>` : ''}
           <div class="upload-meta">by ${u.profiles?.full_name || u.profiles?.email || 'someone'} · ${new Date(u.uploaded_at).toLocaleDateString('en-MY')}</div>
         </div>
-        <button class="btn small secondary" data-id="${u.id}">Delete</button>
+        <button class="btn pill small secondary" data-id="${u.id}">Delete</button>
       </div>
     `);
     row.querySelector('button').addEventListener('click', () => deleteUpload(u.id, u.file_name));
@@ -2248,8 +2248,8 @@ function NewProjectModal(){
           <div class="field"><label>Description (optional)</label><textarea name="description" rows="2">${nd.description}</textarea></div>
           <div class="field"><label>Opening cash balance (RM)</label><input type="number" step="0.01" name="opening_balance" value="${nd.opening_balance}" placeholder="e.g. 50000"></div>
           <div class="modal-actions">
-            <button type="button" class="btn secondary" id="np-cancel">Cancel</button>
-            <button type="submit" class="btn">Create</button>
+            <button type="button" class="btn pill secondary" id="np-cancel">Cancel</button>
+            <button type="submit" class="btn pill">Create</button>
           </div>
         </form>
       </div>
@@ -2319,8 +2319,8 @@ function EditProjectModal(){
           </div>
 
           <div class="modal-actions">
-            <button type="button" class="btn secondary" id="ep-cancel">Cancel</button>
-            <button type="submit" class="btn">Save</button>
+            <button type="button" class="btn pill secondary" id="ep-cancel">Cancel</button>
+            <button type="submit" class="btn pill">Save</button>
           </div>
         </form>
       </div>
@@ -2411,7 +2411,7 @@ function UploadModal(){
         <input type="file" id="file-input" accept=".csv,.xlsx,.xls" style="display:none;">
       </div>
       <div class="modal-actions">
-        <button type="button" class="btn secondary" id="up-cancel">Cancel</button>
+        <button type="button" class="btn pill secondary" id="up-cancel">Cancel</button>
       </div>
     `;
     modal.querySelector('#stmt-type').addEventListener('change', (e) => { state.uploadStatementType = e.target.value; });
@@ -2438,8 +2438,8 @@ function UploadModal(){
         </ul>
       </div>
       <div class="modal-actions" style="justify-content:space-between;">
-        <button type="button" class="btn secondary" id="mm-map-anyway" style="font-size:12px;">Map columns manually anyway</button>
-        <button type="button" class="btn" id="mm-cancel">Got it, I'll re-upload</button>
+        <button type="button" class="btn pill secondary" id="mm-map-anyway" style="font-size:12px;">Map columns manually anyway</button>
+        <button type="button" class="btn pill" id="mm-cancel">Got it, I'll re-upload</button>
       </div>
     `;
     modal.querySelector('#mm-cancel').addEventListener('click', () => { closeUploadModal(); render(); });
@@ -2472,8 +2472,8 @@ function UploadModal(){
         </table>
       </div>
       <div class="modal-actions">
-        <button type="button" class="btn secondary" id="up-back">Back</button>
-        <button type="button" class="btn" id="up-next">Next</button>
+        <button type="button" class="btn pill secondary" id="up-back">Back</button>
+        <button type="button" class="btn pill" id="up-next">Next</button>
       </div>
     `;
     modal.querySelectorAll('.header-row-option').forEach(r => r.addEventListener('click', () => {
@@ -2509,8 +2509,8 @@ function UploadModal(){
         <input type="text" id="exclude-keywords" value="${state.uploadExcludeKeywords}">
       </div>
       <div class="modal-actions">
-        <button type="button" class="btn secondary" id="up-back">Back</button>
-        <button type="button" class="btn" id="up-confirm">Import</button>
+        <button type="button" class="btn pill secondary" id="up-back">Back</button>
+        <button type="button" class="btn pill" id="up-confirm">Import</button>
       </div>
     `;
     modal.querySelector('#map-category').addEventListener('change', (e) => state.uploadMapping.category = e.target.value);
@@ -2544,8 +2544,8 @@ function BudgetItemModal(){
           </div>
           <div class="field"><label>Budget amount (RM)</label><input type="number" step="0.01" name="budget_amount" value="${d.budget_amount}" placeholder="e.g. 81193.20" required></div>
           <div class="modal-actions">
-            <button type="button" class="btn secondary" id="bi-cancel">Cancel</button>
-            <button type="submit" class="btn">${isEdit ? 'Save' : 'Add'}</button>
+            <button type="button" class="btn pill secondary" id="bi-cancel">Cancel</button>
+            <button type="submit" class="btn pill">${isEdit ? 'Save' : 'Add'}</button>
           </div>
         </form>
       </div>
@@ -2615,7 +2615,7 @@ function QuickFillModal(){
             <label>Fill amount (${year})</label>
             <input type="number" step="0.01" id="qf-fill-amount" placeholder="e.g. -4500">
           </div>
-          <button type="button" class="btn small secondary" id="qf-apply-all" style="margin-bottom:14px;">Apply to all 12</button>
+          <button type="button" class="btn pill small secondary" id="qf-apply-all" style="margin-bottom:14px;">Apply to all 12</button>
         </div>
 
         <div style="max-height:280px; overflow-y:auto; border:1px solid var(--line); border-radius:6px; padding:10px 12px; margin-top:6px;">
@@ -2628,8 +2628,8 @@ function QuickFillModal(){
         </div>
 
         <div class="modal-actions">
-          <button type="button" class="btn secondary" id="qf-cancel">Cancel</button>
-          <button type="button" class="btn" id="qf-submit">Create entries</button>
+          <button type="button" class="btn pill secondary" id="qf-cancel">Cancel</button>
+          <button type="button" class="btn pill" id="qf-submit">Create entries</button>
         </div>
       </div>
     </div>
@@ -2758,8 +2758,8 @@ function LineItemModal(){
             </select>
           </div>
           <div class="modal-actions">
-            <button type="button" class="btn secondary" id="li-cancel">Cancel</button>
-            <button type="submit" class="btn">${isEdit ? 'Save' : 'Add'}</button>
+            <button type="button" class="btn pill secondary" id="li-cancel">Cancel</button>
+            <button type="submit" class="btn pill">${isEdit ? 'Save' : 'Add'}</button>
           </div>
         </form>
       </div>

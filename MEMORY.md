@@ -6,6 +6,12 @@ Fail utama: `pnl-cashflow-tracker.html` — single-file HTML app (vanilla JS, no
 
 ---
 
+## 0. STANDING RULES (jangan langgar / tanya semula)
+
+- **Bahasa: 100% English.** App PROFIT (UI, semua teks) dan semua fail deliverable berkaitan (template Excel, dll.) **WAJIB** dalam Bahasa Inggeris sepenuhnya — tiada Bahasa Melayu, tiada campur bahasa. Ni rule tetap — **jangan tanya lagi** pasal language untuk project ni.
+
+---
+
 ## 1. Backend (Supabase)
 
 - **Project ref:** `zgewkcvgseonddybfckb`
@@ -132,4 +138,3 @@ Fail utama: `pnl-cashflow-tracker.html` — single-file HTML app (vanilla JS, no
 ---
 
 *Kemaskini terakhir: rujuk timestamp conversation. Sila update file ni bila ada perubahan besar (schema, feature baru, design system) supaya session akan datang boleh terus faham konteks tanpa ulang tanya.*
-# Staging environment

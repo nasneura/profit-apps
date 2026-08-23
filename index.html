@@ -218,6 +218,7 @@ let state = {
   profile: null,
   projects: [],
   selectedProjectId: null, // null = not chosen, 'consolidated' = consolidated view
+  consolidatedTab: 'pnl', // 'pnl' | 'cashflow' | 'forecast' | 'analysis'
   activeTab: 'summary',
   lineItems: [],
   uploads: [],
@@ -432,7 +433,8 @@ async function loadProjectData(projectId){
     const { data: items } = await sb.from('line_items').select('*, projects(name)');
     state.lineItems = items || [];
     state.uploads = [];
-    state.budgetItems = [];
+    const { data: budgetItems } = await sb.from('budget_items').select('*, projects(name)');
+    state.budgetItems = budgetItems || [];
   } else {
     const { data: items } = await sb.from('line_items').select('*').eq('project_id', projectId);
     state.lineItems = items || [];
@@ -1149,7 +1151,11 @@ function Sidebar(){
       <div>
         <div class="nav-section-label">Overview</div>
         <div class="project-list">
-          <div class="project-item consolidated ${state.selectedProjectId==='consolidated'?'active':''}" data-id="consolidated">◈ Consolidated</div>
+          <div class="project-item consolidated" style="font-weight:600; cursor:default; opacity:0.85;">◈ Dashboard</div>
+          <div class="dashboard-sub ${state.selectedProjectId==='consolidated' && state.consolidatedTab==='pnl'?'active':''}" data-tab="pnl" style="padding:7px 10px 7px 26px; border-radius:10px; cursor:pointer; font-size:12.5px; color:${state.selectedProjectId==='consolidated' && state.consolidatedTab==='pnl' ? 'var(--text)' : 'var(--grey)'}; background:${state.selectedProjectId==='consolidated' && state.consolidatedTab==='pnl' ? 'var(--panel-alt)' : 'transparent'};">Consolidated PnL</div>
+          <div class="dashboard-sub ${state.selectedProjectId==='consolidated' && state.consolidatedTab==='cashflow'?'active':''}" data-tab="cashflow" style="padding:7px 10px 7px 26px; border-radius:10px; cursor:pointer; font-size:12.5px; color:${state.selectedProjectId==='consolidated' && state.consolidatedTab==='cashflow' ? 'var(--text)' : 'var(--grey)'}; background:${state.selectedProjectId==='consolidated' && state.consolidatedTab==='cashflow' ? 'var(--panel-alt)' : 'transparent'};">Consolidated Cashflow</div>
+          <div class="dashboard-sub ${state.selectedProjectId==='consolidated' && state.consolidatedTab==='forecast'?'active':''}" data-tab="forecast" style="padding:7px 10px 7px 26px; border-radius:10px; cursor:pointer; font-size:12.5px; color:${state.selectedProjectId==='consolidated' && state.consolidatedTab==='forecast' ? 'var(--text)' : 'var(--grey)'}; background:${state.selectedProjectId==='consolidated' && state.consolidatedTab==='forecast' ? 'var(--panel-alt)' : 'transparent'};">Consolidated Forecast</div>
+          <div class="dashboard-sub ${state.selectedProjectId==='consolidated' && state.consolidatedTab==='analysis'?'active':''}" data-tab="analysis" style="padding:7px 10px 7px 26px; border-radius:10px; cursor:pointer; font-size:12.5px; color:${state.selectedProjectId==='consolidated' && state.consolidatedTab==='analysis' ? 'var(--text)' : 'var(--grey)'}; background:${state.selectedProjectId==='consolidated' && state.consolidatedTab==='analysis' ? 'var(--panel-alt)' : 'transparent'};">Consolidated Analysis</div>
         </div>
       </div>
       <div>
@@ -1168,8 +1174,14 @@ function Sidebar(){
       </div>
     </div>
   `);
-  sb_.querySelectorAll('.project-item').forEach(item => {
+  sb_.querySelectorAll('.project-item[data-id]').forEach(item => {
     item.addEventListener('click', () => selectProject(item.dataset.id));
+  });
+  sb_.querySelectorAll('.dashboard-sub').forEach(item => {
+    item.addEventListener('click', () => {
+      state.consolidatedTab = item.dataset.tab;
+      selectProject('consolidated');
+    });
   });
   const npBtn = sb_.querySelector('#new-project-btn');
   if(npBtn) npBtn.addEventListener('click', () => { state.showNewProjectModal = true; render(); });
@@ -1194,11 +1206,17 @@ function MainPanel(){
   const project = isConsolidated ? null : state.projects.find(p => p.id === state.selectedProjectId);
   const isAdmin = state.profile && state.profile.role === 'admin';
 
+  const consolidatedTitles = {
+    pnl: ['Consolidated PnL', 'Combined PnL across all projects'],
+    cashflow: ['Consolidated Cashflow', 'Combined Cashflow across all projects'],
+    forecast: ['Consolidated Forecast', 'Combined running cash balance across all projects'],
+    analysis: ['Consolidated Analysis', 'Alerts and performance across all projects'],
+  };
   const header = el(`
     <div class="main-header">
       <div>
-        <h1 class="page-title">${isConsolidated ? 'Consolidated' : project.name}</h1>
-        <div class="page-sub">${isConsolidated ? 'All projects — PnL & Cashflow combined' : (project.description || 'Project PnL & Cashflow')}</div>
+        <h1 class="page-title">${isConsolidated ? consolidatedTitles[state.consolidatedTab][0] : project.name}</h1>
+        <div class="page-sub">${isConsolidated ? consolidatedTitles[state.consolidatedTab][1] : (project.description || 'Project PnL & Cashflow')}</div>
       </div>
       <div style="display:flex; gap:8px;">
         ${(!isConsolidated && isAdmin) ? `<button class="btn secondary pill" id="edit-project-btn">Edit Project</button>` : ''}
@@ -1272,7 +1290,10 @@ function MainPanel(){
     if(state.activeTab === 'alerts') main.appendChild(AlertsView(project));
     if(state.activeTab === 'uploads') main.appendChild(UploadsView());
   } else {
-    main.appendChild(ConsolidatedView());
+    if(state.consolidatedTab === 'pnl') main.appendChild(ConsolidatedPnLView());
+    if(state.consolidatedTab === 'cashflow') main.appendChild(ConsolidatedCashflowView());
+    if(state.consolidatedTab === 'forecast') main.appendChild(ForecastView(getConsolidatedVirtualProject()));
+    if(state.consolidatedTab === 'analysis') main.appendChild(ConsolidatedAnalysisView());
   }
 
   return main;
@@ -2228,45 +2249,143 @@ function UploadsView(){
   return wrap;
 }
 
-function ConsolidatedView(){
-  const wrap = el(`<div></div>`);
-  const { pnl, cf } = computeTotals(state.lineItems);
-  wrap.appendChild(el(`
-    <div class="stat-grid">
-      <div class="stat-card"><div class="stat-label">Total Net PnL (all projects)</div><div class="stat-value ${pnl>=0?'pos':'neg'}">${fmtMoney(pnl)}</div></div>
-      <div class="stat-card"><div class="stat-label">Total Net Cashflow (all projects)</div><div class="stat-value ${cf>=0?'pos':'neg'}">${fmtMoney(cf)}</div></div>
-      <div class="stat-card"><div class="stat-label">Total projects</div><div class="stat-value">${state.projects.length}</div></div>
-    </div>
-  `));
+function getConsolidatedVirtualProject(){
+  const totalOpeningBalance = state.projects.reduce((s,p) => s + (Number(p.opening_balance) || 0), 0);
+  return { opening_balance: totalOpeningBalance, percent_complete: 0, start_date: null, end_date: null };
+}
 
-  const card = el(`<div class="card"><div class="card-title">PnL & Cashflow by project</div></div>`);
+function byProjectBreakdownTable(items, valueLabel){
   const byProject = {};
-  state.lineItems.forEach(i => {
+  items.forEach(i => {
     const pname = i.projects?.name || 'Unknown';
-    if(!byProject[pname]) byProject[pname] = { pnl:0, cf:0 };
-    if(i.statement_type === 'pnl') byProject[pname].pnl += Number(i.amount);
-    else byProject[pname].cf += Number(i.amount);
+    byProject[pname] = (byProject[pname] || 0) + Number(i.amount);
   });
-  const rows = Object.entries(byProject);
+  const rows = Object.entries(byProject).sort((a,b) => b[1]-a[1]);
+  const card = el(`<div class="card"><div class="card-title">${valueLabel} by project</div></div>`);
   if(rows.length === 0){
     card.appendChild(el(`<div style="color:var(--grey);font-size:13px;">No data in any project yet.</div>`));
   } else {
-    const table = el(`
+    card.appendChild(el(`
       <table class="ledger">
-        <thead><tr><th>Project</th><th class="num">Net PnL</th><th class="num">Net Cashflow</th></tr></thead>
+        <thead><tr><th>Project</th><th class="num">${valueLabel}</th></tr></thead>
         <tbody>
-          ${rows.map(([name, v]) => `
-            <tr>
-              <td class="cat">${name}</td>
-              <td class="num ${v.pnl>=0?'amt-pos':'amt-neg'}">${fmtMoney(v.pnl)}</td>
-              <td class="num ${v.cf>=0?'amt-pos':'amt-neg'}">${fmtMoney(v.cf)}</td>
-            </tr>`).join('')}
+          ${rows.map(([name,v]) => `<tr><td class="cat">${name}</td><td class="num ${v>=0?'amt-pos':'amt-neg'}">${fmtMoney(v)}</td></tr>`).join('')}
         </tbody>
       </table>
-    `);
-    card.appendChild(table);
+    `));
   }
-  wrap.appendChild(card);
+  return card;
+}
+
+function ConsolidatedPnLView(){
+  const wrap = el(`<div></div>`);
+  const pnlItems = state.lineItems.filter(i => i.statement_type === 'pnl');
+  const total = pnlItems.reduce((s,i) => s + Number(i.amount), 0);
+  wrap.appendChild(el(`
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-label">Total Net PnL</div><div class="stat-value ${total>=0?'pos':'neg'}">${fmtMoney(total)}</div></div>
+      <div class="stat-card"><div class="stat-label">Projects with PnL data</div><div class="stat-value">${new Set(pnlItems.map(i=>i.project_id)).size}</div></div>
+      <div class="stat-card"><div class="stat-label">Line items</div><div class="stat-value">${pnlItems.length}</div></div>
+    </div>
+  `));
+  wrap.appendChild(byProjectBreakdownTable(pnlItems, 'Net PnL'));
+  wrap.appendChild(StatementTable(pnlItems, 'pnl'));
+  return wrap;
+}
+
+function ConsolidatedCashflowView(){
+  const wrap = el(`<div></div>`);
+  const cfItems = state.lineItems.filter(i => i.statement_type === 'cashflow');
+  const total = cfItems.reduce((s,i) => s + Number(i.amount), 0);
+  wrap.appendChild(el(`
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-label">Total Net Cashflow</div><div class="stat-value ${total>=0?'pos':'neg'}">${fmtMoney(total)}</div></div>
+      <div class="stat-card"><div class="stat-label">Projects with Cashflow data</div><div class="stat-value">${new Set(cfItems.map(i=>i.project_id)).size}</div></div>
+      <div class="stat-card"><div class="stat-label">Line items</div><div class="stat-value">${cfItems.length}</div></div>
+    </div>
+  `));
+  wrap.appendChild(byProjectBreakdownTable(cfItems, 'Net Cashflow'));
+  wrap.appendChild(StatementTable(cfItems, 'cashflow'));
+  return wrap;
+}
+
+function ConsolidatedAnalysisView(){
+  const wrap = el(`<div></div>`);
+
+  // Portfolio-wide alerts: run the same rule-based check per project, tag each with its project name
+  const portfolioAlerts = [];
+  state.projects.forEach(p => {
+    const projItems = state.lineItems.filter(i => i.project_id === p.id);
+    const projBudget = (state.budgetItems || []).filter(b => b.project_id === p.id);
+    const projAlerts = computeAlerts(p, projItems, projBudget);
+    projAlerts.forEach(a => portfolioAlerts.push({ ...a, projectName: p.name }));
+  });
+  const order = { critical: 0, warning: 1 };
+  portfolioAlerts.sort((a,b) => order[a.severity] - order[b.severity]);
+  const criticalCount = portfolioAlerts.filter(a => a.severity === 'critical').length;
+  const warningCount = portfolioAlerts.filter(a => a.severity === 'warning').length;
+
+  // Portfolio cost performance rollup
+  const allBudgetItems = state.budgetItems || [];
+  const cogsTotal = allBudgetItems.reduce((s,b) => s + Number(b.budget_amount), 0);
+  const totalActual = allBudgetItems.reduce((s,b) => {
+    const catLower = b.category.trim().toLowerCase();
+    const actual = state.lineItems
+      .filter(i => i.project_id === b.project_id && i.category && i.category.trim().toLowerCase() === catLower)
+      .reduce((sum,i) => sum + Math.abs(Number(i.amount)), 0);
+    return s + actual;
+  }, 0);
+  const variance = cogsTotal - totalActual;
+
+  wrap.appendChild(el(`
+    <div class="stat-grid">
+      <div class="stat-card" style="background:${criticalCount>0 ? 'var(--rust-soft)' : 'var(--teal-soft)'};">
+        <div class="stat-label">Critical Alerts</div>
+        <div class="stat-value" style="color:${criticalCount>0 ? 'var(--rust)' : 'var(--teal)'};">${criticalCount}</div>
+      </div>
+      <div class="stat-card" style="background:${warningCount>0 ? 'var(--gold-soft)' : 'var(--teal-soft)'};">
+        <div class="stat-label">Warning Alerts</div>
+        <div class="stat-value" style="color:${warningCount>0 ? 'var(--gold)' : 'var(--teal)'};">${warningCount}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Budget (all projects)</div>
+        <div class="stat-value">${fmtMoney(cogsTotal)}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Actual</div>
+        <div class="stat-value">${fmtMoney(totalActual)}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Variance</div>
+        <div class="stat-value ${variance>=0?'pos':'neg'}">${fmtMoney(variance)}</div>
+      </div>
+    </div>
+  `));
+
+  const alertsCard = el(`<div class="card"><div class="card-title">Alerts across all projects</div></div>`);
+  if(portfolioAlerts.length === 0){
+    alertsCard.appendChild(el(`<div style="font-size:13px; color:var(--grey);">No issues detected in any project.</div>`));
+  } else {
+    const list = el(`<div style="display:flex; flex-direction:column; gap:10px;"></div>`);
+    portfolioAlerts.forEach(a => {
+      const isCritical = a.severity === 'critical';
+      const color = isCritical ? 'var(--rust)' : 'var(--gold)';
+      const bg = isCritical ? 'var(--rust-soft)' : 'var(--gold-soft)';
+      list.appendChild(el(`
+        <div style="border-left:4px solid ${color}; background:${bg}; border-radius:6px; padding:12px 14px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px; flex-wrap:wrap;">
+            <span style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:${color};">${a.severity}</span>
+            <span style="font-size:12px; font-weight:600; color:var(--grey);">${a.projectName}</span>
+            <span style="font-size:14px; font-weight:600;">${a.title}</span>
+          </div>
+          <div style="font-size:13px; color:var(--grey);">${a.detail}</div>
+        </div>
+      `));
+    });
+    alertsCard.appendChild(list);
+  }
+  wrap.appendChild(alertsCard);
+
   return wrap;
 }
 

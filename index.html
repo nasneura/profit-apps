@@ -1305,6 +1305,19 @@ function computeTotals(items){
   return { pnl, cf };
 }
 
+function sparklineSVG(values, color){
+  if(!values || values.length < 2) return '';
+  const w = 72, h = 18;
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = (max - min) || 1;
+  const points = values.map((v,i) => {
+    const x = (i/(values.length-1)) * w;
+    const y = h - ((v-min)/range) * h;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  return `<svg width="${w}" height="${h}" style="margin-top:6px; display:block;"><polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.5"/></svg>`;
+}
+
 function SummaryView(items, project){
   const { pnl, cf } = computeTotals(items);
   const wrap = el(`<div></div>`);
@@ -1313,16 +1326,30 @@ function SummaryView(items, project){
   const warningCount = alerts.filter(a => a.severity === 'warning').length;
   const alertColor = criticalCount > 0 ? 'neg' : warningCount > 0 ? '' : 'pos';
   const alertHex = criticalCount > 0 ? 'var(--rust)' : warningCount > 0 ? 'var(--gold)' : 'var(--teal)';
+
+  // ===== Precompute full-timeline monthly trends for sparklines =====
+  const allPnlItems = state.lineItems.filter(i => i.statement_type === 'pnl' && i.period);
+  const pnlByMonth = {};
+  allPnlItems.forEach(i => { const m = i.period.slice(0,7); pnlByMonth[m] = (pnlByMonth[m]||0) + Number(i.amount); });
+  const pnlTrend = Object.keys(pnlByMonth).sort().map(m => pnlByMonth[m]);
+
+  const allCashItemsForTrend = state.lineItems.filter(i => i.statement_type === 'cashflow' && i.period);
+  const cfByMonth = {};
+  allCashItemsForTrend.forEach(i => { const m = i.period.slice(0,7); cfByMonth[m] = (cfByMonth[m]||0) + Number(i.amount); });
+  const cfTrend = Object.keys(cfByMonth).sort().map(m => cfByMonth[m]);
+
   wrap.appendChild(el(`
     <div class="stat-grid">
       <div class="stat-card">
         <div class="stat-label">Net PnL</div>
         <div class="stat-value ${pnl>=0?'pos':'neg'}">${fmtMoney(pnl)}</div>
+        ${sparklineSVG(pnlTrend, pnl>=0?'var(--teal)':'var(--rust)')}
         <div style="font-size:10.5px;color:var(--grey);margin-top:5px;">Revenue minus Expenses (accounting profit) for the selected month</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Net Cashflow</div>
         <div class="stat-value ${cf>=0?'pos':'neg'}">${fmtMoney(cf)}</div>
+        ${sparklineSVG(cfTrend, cf>=0?'var(--teal)':'var(--rust)')}
         <div style="font-size:10.5px;color:var(--grey);margin-top:5px;">Cash In minus Cash Out (actual money movement) for the selected month</div>
       </div>
       <div class="stat-card">
@@ -1357,32 +1384,48 @@ function SummaryView(items, project){
     });
     const endingBalance = months.length > 0 ? running : openingBalance + netPosition;
 
+    // Per-month cash-in-only / cash-out-only trends (for the two split sparklines)
+    const cashInByMonth = {}, cashOutByMonth = {};
+    dated.forEach(i => {
+      const m = i.period.slice(0,7);
+      if(Number(i.amount) >= 0) cashInByMonth[m] = (cashInByMonth[m]||0) + Number(i.amount);
+      else cashOutByMonth[m] = (cashOutByMonth[m]||0) + Number(i.amount);
+    });
+    const cashInTrend = months.map(m => cashInByMonth[m] || 0);
+    const cashOutTrend = months.map(m => cashOutByMonth[m] || 0);
+    const balanceTrend = monthRows.map(r => r.balance);
+
     wrap.appendChild(el(`
       <div class="page-sub" style="margin:-4px 0 10px;">The 5 cards below always reflect the <strong>full project timeline</strong> (Actual + Forecast combined) — independent of the month filter above.</div>
       <div class="stat-grid">
         <div class="stat-card">
           <div class="stat-label">Total Cash In</div>
           <div class="stat-value pos">${fmtMoney(totalCashIn)}</div>
+          ${sparklineSVG(cashInTrend, 'var(--teal)')}
           <div style="font-size:10.5px;color:var(--grey);margin-top:5px;">All money coming in, whole project</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Total Cash Out</div>
           <div class="stat-value neg">${fmtMoney(totalCashOut)}</div>
+          ${sparklineSVG(cashOutTrend, 'var(--rust)')}
           <div style="font-size:10.5px;color:var(--grey);margin-top:5px;">All money going out, whole project</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Net Cash Position</div>
           <div class="stat-value ${netPosition>=0?'pos':'neg'}">${fmtMoney(netPosition)}</div>
+          ${sparklineSVG(monthRows.map(r=>r.net), netPosition>=0?'var(--teal)':'var(--rust)')}
           <div style="font-size:10.5px;color:var(--grey);margin-top:5px;">Cash In minus Cash Out, whole project</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Min. Balance</div>
           <div class="stat-value ${minBalance>=0?'pos':'neg'}">${fmtMoney(minBalance)}</div>
+          ${sparklineSVG(balanceTrend, 'var(--gold)')}
           <div style="font-size:10.5px;color:var(--grey);margin-top:5px;">Lowest point the balance ever reaches, from Opening Balance across every month recorded</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Ending Cash Balance</div>
           <div class="stat-value ${endingBalance>=0?'pos':'neg'}">${fmtMoney(endingBalance)}</div>
+          ${sparklineSVG(balanceTrend, endingBalance>=0?'var(--teal)':'var(--rust)')}
           <div style="font-size:10.5px;color:var(--grey);margin-top:5px;">Projected balance after the last month with data — not necessarily today</div>
         </div>
       </div>

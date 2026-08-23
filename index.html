@@ -28,6 +28,8 @@
     --navy-light:#E3E9F1;
     --grey:#6B6A63;
     --text:#2B2A26;
+    --panel:#FFFFFF;
+    --panel-alt:#F7F5EF;
   }
   *{box-sizing:border-box;}
   body{
@@ -109,7 +111,7 @@
     border:1px solid var(--ink); background:var(--ink); color:var(--paper); cursor:pointer;
   }
   .btn:hover{ opacity:0.88; }
-  .btn.secondary{ background:transparent; color:var(--ink); }
+  .btn.secondary{ background:transparent; color:var(--ink); border:1px solid var(--line); }
   .btn.small{ padding:6px 11px; font-size:12px; }
   .btn:disabled{ opacity:0.4; cursor:not-allowed; }
 
@@ -2081,6 +2083,9 @@ function UploadModal(){
       <div class="field">
         <label>Period label (optional)</label>
         <input type="text" id="period-label" placeholder="e.g. Jan 2026, FY2025" value="${state.uploadPeriodLabel}">
+      </div>
+      <div class="field" style="background:var(--paper-dim); padding:10px 12px; border-radius:6px; font-size:12.5px;">
+        Don't have the template? <a href="/docs/templates/PnL_Cashflow_Template.xlsx" download style="color:var(--teal); font-weight:600;">Download flat template</a> · <a href="/docs/templates/PnL_Cashflow_Template_Monthly.xlsx" download style="color:var(--teal); font-weight:600;">Download monthly template</a>
       </div>
       <div class="field">
         <label>CSV / Excel file</label>

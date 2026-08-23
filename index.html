@@ -1127,13 +1127,13 @@ function MainPanel(){
   const header = el(`
     <div class="main-header">
       <div>
-        <h1 class="page-title">
-          ${isConsolidated ? 'Consolidated' : project.name}
-          ${(!isConsolidated && isAdmin) ? `<button id="edit-project-btn" style="background:none;border:none;cursor:pointer;color:var(--grey);font-size:15px;vertical-align:middle;margin-left:6px;" title="Edit project">✎</button>` : ''}
-        </h1>
+        <h1 class="page-title">${isConsolidated ? 'Consolidated' : project.name}</h1>
         <div class="page-sub">${isConsolidated ? 'All projects — PnL & Cashflow combined' : (project.description || 'Project PnL & Cashflow')}</div>
       </div>
-      ${!isConsolidated ? `<button class="btn" id="upload-btn">+ Upload data</button>` : ''}
+      <div style="display:flex; gap:8px;">
+        ${(!isConsolidated && isAdmin) ? `<button class="btn secondary" id="edit-project-btn">✎ Edit Project</button>` : ''}
+        ${!isConsolidated ? `<button class="btn" id="upload-btn">+ Upload data</button>` : ''}
+      </div>
     </div>
   `);
   if(!isConsolidated){

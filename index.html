@@ -228,7 +228,7 @@ let state = {
   showNewProjectModal: false,
   newProjectDraft: null,
   showEditProjectModal: false,
-  editProjectData: { id: null, name: '', description: '', opening_balance: 0, client_name: '', location: '', contract_value: 0, sst_percent: 8, deposit_percent: 50, mos_percent: 20, tax_percent: 32, percent_complete: 0 },
+  editProjectData: { id: null, name: '', description: '', opening_balance: 0, client_name: '', location: '', contract_value: 0, sst_percent: 8, deposit_percent: 50, mos_percent: 20, tax_percent: 32, percent_complete: 0, start_date: '', end_date: '' },
   budgetItems: [],
   showBudgetItemModal: false,
   budgetItemModalData: { id: null, category: '', budget_amount: '' },
@@ -501,6 +501,8 @@ function openEditProject(project){
     mos_percent: project.mos_percent ?? 20,
     tax_percent: project.tax_percent ?? 32,
     percent_complete: project.percent_complete ?? 0,
+    start_date: project.start_date || '',
+    end_date: project.end_date || '',
   };
   state.showEditProjectModal = true;
   render();
@@ -519,6 +521,8 @@ async function updateProject(id, fields){
     mos_percent: parseFloat(fields.mos_percent) || 0,
     tax_percent: parseFloat(fields.tax_percent) || 0,
     percent_complete: Math.max(0, Math.min(100, parseFloat(fields.percent_complete) || 0)),
+    start_date: fields.start_date || null,
+    end_date: fields.end_date || null,
   };
   const { error } = await sb.from('projects').update(payload).eq('id', id);
   if(error){ alert(error.message); return; }
@@ -1220,6 +1224,7 @@ function MainPanel(){
           <div class="tab ${state.activeTab==='cashflow'?'active':''}" data-tab="cashflow">Cashflow</div>
           <div class="tab ${state.activeTab==='forecast'?'active':''}" data-tab="forecast">Forecast</div>
           <div class="tab ${state.activeTab==='budget'?'active':''}" data-tab="budget">Budget</div>
+          <div class="tab ${state.activeTab==='performance'?'active':''}" data-tab="performance">Performance Analysis</div>
           <div class="tab ${state.activeTab==='uploads'?'active':''}" data-tab="uploads">Uploads</div>
         </div>
         <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
@@ -1229,7 +1234,7 @@ function MainPanel(){
               <button type="button" id="view-grid-btn" class="btn small ${state.viewMode==='grid'?'':'secondary'}" style="border:none; border-radius:0;">Grid</button>
             </div>
           ` : ''}
-          ${(state.activeTab!=='uploads' && state.activeTab!=='forecast' && state.activeTab!=='budget' && !(showViewToggle && state.viewMode==='grid') && periods.length>0) ? `
+          ${(state.activeTab!=='uploads' && state.activeTab!=='forecast' && state.activeTab!=='budget' && state.activeTab!=='performance' && !(showViewToggle && state.viewMode==='grid') && periods.length>0) ? `
             <select id="period-filter" style="width:auto;padding:6px 9px;font-size:12.5px;">
               <option value="all" ${state.periodFilter==='all'?'selected':''}>All months</option>
               ${periods.map(p => `<option value="${p}" ${state.periodFilter===p?'selected':''}>${fmtPeriod(p+'-01')}</option>`).join('')}
@@ -1262,6 +1267,7 @@ function MainPanel(){
     }
     if(state.activeTab === 'forecast') main.appendChild(ForecastView(project));
     if(state.activeTab === 'budget') main.appendChild(BudgetView(project));
+    if(state.activeTab === 'performance') main.appendChild(PerformanceView(project));
     if(state.activeTab === 'uploads') main.appendChild(UploadsView());
   } else {
     main.appendChild(ConsolidatedView());
@@ -1637,9 +1643,18 @@ function StatementTable(items, type){
   return wrap;
 }
 
+function actualFor(category){
+  const catLower = category.trim().toLowerCase();
+  return state.lineItems
+    .filter(i => i.category && i.category.trim().toLowerCase() === catLower)
+    .reduce((s,i) => s + Math.abs(Number(i.amount)), 0);
+}
+
 function BudgetView(project){
   const wrap = el(`<div></div>`);
   const isAdmin = state.profile && state.profile.role === 'admin';
+
+  wrap.appendChild(el(`<div style="font-size:12.5px;color:var(--grey);margin-bottom:12px;">Looking for EAC/ETC/VAC/CPI or schedule performance? See the <strong>Performance Analysis</strong> tab.</div>`));
 
   // Meta card
   wrap.appendChild(el(`
@@ -1656,13 +1671,6 @@ function BudgetView(project){
   // Budget category table
   const budgetItems = state.budgetItems || [];
   const cogsTotal = budgetItems.reduce((s,b) => s + Number(b.budget_amount), 0);
-
-  const actualFor = (category) => {
-    const catLower = category.trim().toLowerCase();
-    return state.lineItems
-      .filter(i => i.category && i.category.trim().toLowerCase() === catLower)
-      .reduce((s,i) => s + Math.abs(Number(i.amount)), 0);
-  };
 
   const addBar = el(`
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
@@ -1742,44 +1750,6 @@ function BudgetView(project){
     </div>
   `));
 
-  // ===== Cost Forecast: EAC / ETC / VAC / CPI =====
-  if(budgetItems.length > 0){
-    const totalActual = budgetItems.reduce((s,b) => s + actualFor(b.category), 0);
-    const pc = Math.max(0, Math.min(100, Number(project.percent_complete) || 0));
-    const eac = pc > 0 ? totalActual / (pc / 100) : totalProjectCost;
-    const etc = Math.max(0, eac - totalActual);
-    const vac = totalProjectCost - eac;
-    const ev = totalProjectCost * (pc / 100);
-    const cpi = pc > 0 && totalActual > 0 ? ev / totalActual : null;
-
-    wrap.appendChild(el(`
-      <div class="card">
-        <div class="card-title">Cost Forecast <span style="font-weight:400;font-size:12px;color:var(--grey);">— based on ${pc}% complete</span></div>
-        <div class="stat-grid">
-          <div class="stat-card">
-            <div class="stat-label">EAC — Estimate at Completion</div>
-            <div class="stat-value">${fmtMoney(eac)}</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">ETC — Estimate to Complete</div>
-            <div class="stat-value">${fmtMoney(etc)}</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">VAC — Variance at Completion</div>
-            <div class="stat-value ${vac>=0?'pos':'neg'}">${fmtMoney(vac)}</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">CPI — Cost Performance Index</div>
-            <div class="stat-value ${cpi===null?'':(cpi>=1?'pos':'neg')}">${cpi===null ? '—' : cpi.toFixed(2)}</div>
-          </div>
-        </div>
-        <div style="font-size:12px;color:var(--grey);margin-top:4px;">
-          ${pc === 0 ? 'Set "% Complete" via Edit project to activate forecasting — until then EAC defaults to Total Project Cost.' : `VAC ${vac>=0?'positive':'negative'} means the project is forecast to finish ${vac>=0?'under':'over'} budget. CPI ${cpi!==null && cpi>=1 ? '≥ 1.0 means cost-efficient so far.' : cpi!==null ? '< 1.0 means costs are running ahead of value earned.' : ''}`}
-        </div>
-      </div>
-    `));
-  }
-
   wrap.appendChild(el(`
     <div class="card">
       <div class="card-title">Pricing</div>
@@ -1801,6 +1771,127 @@ function BudgetView(project){
           <tr class="total-row"><td class="cat">Net Profit</td><td class="num ${netProfit>=0?'amt-pos':'amt-neg'}">${fmtMoney(netProfit)} <span style="font-size:12px;font-weight:400;color:var(--grey);">(${margin.toFixed(1)}% margin)</span></td></tr>
         </tbody>
       </table>
+    </div>
+  `));
+
+  return wrap;
+}
+
+function PerformanceView(project){
+  const wrap = el(`<div></div>`);
+  const budgetItems = state.budgetItems || [];
+  const cogsTotal = budgetItems.reduce((s,b) => s + Number(b.budget_amount), 0);
+  const totalActual = budgetItems.reduce((s,b) => s + actualFor(b.category), 0);
+  const pc = Math.max(0, Math.min(100, Number(project.percent_complete) || 0));
+
+  if(budgetItems.length === 0){
+    wrap.appendChild(el(`<div class="empty-state"><div class="big">No budget set up yet</div><div>Add budget lines in the Budget tab first — Performance Analysis needs a budget baseline to compare against.</div></div>`));
+    return wrap;
+  }
+
+  // ===== Cost Forecast: EAC / ETC / VAC / CPI =====
+  const eac = pc > 0 ? totalActual / (pc / 100) : cogsTotal;
+  const etc = Math.max(0, eac - totalActual);
+  const vac = cogsTotal - eac;
+  const ev = cogsTotal * (pc / 100);
+  const cpi = pc > 0 && totalActual > 0 ? ev / totalActual : null;
+
+  wrap.appendChild(el(`
+    <div class="card">
+      <div class="card-title">Cost Forecast <span style="font-weight:400;font-size:12px;color:var(--grey);">— based on ${pc}% complete</span></div>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">EAC — Estimate at Completion</div>
+          <div class="stat-value">${fmtMoney(eac)}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">ETC — Estimate to Complete</div>
+          <div class="stat-value">${fmtMoney(etc)}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">VAC — Variance at Completion</div>
+          <div class="stat-value ${vac>=0?'pos':'neg'}">${fmtMoney(vac)}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">CPI — Cost Performance Index</div>
+          <div class="stat-value ${cpi===null?'':(cpi>=1?'pos':'neg')}">${cpi===null ? '—' : cpi.toFixed(2)}</div>
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--grey);margin-top:4px;">
+        ${pc === 0 ? 'Set "% Complete" via Edit Project to activate forecasting — until then EAC defaults to Budget.' : `VAC ${vac>=0?'positive':'negative'} means the project is forecast to finish ${vac>=0?'under':'over'} budget. CPI ${cpi!==null && cpi>=1 ? '≥ 1.0 means cost-efficient so far.' : cpi!==null ? '< 1.0 means costs are running ahead of value earned.' : ''}`}
+      </div>
+    </div>
+  `));
+
+  // ===== Schedule Performance (EVM): PV / EV / SV / SPI =====
+  const hasSchedule = project.start_date && project.end_date;
+  let pv = null, sv = null, spi = null;
+  if(hasSchedule){
+    const start = new Date(project.start_date);
+    const end = new Date(project.end_date);
+    const today = new Date();
+    const totalDuration = end - start;
+    let elapsed = today - start;
+    if(elapsed < 0) elapsed = 0;
+    if(elapsed > totalDuration) elapsed = totalDuration;
+    const timeElapsedPct = totalDuration > 0 ? (elapsed / totalDuration) * 100 : 0;
+    pv = cogsTotal * (timeElapsedPct / 100);
+    sv = ev - pv;
+    spi = pv > 0 ? ev / pv : null;
+  }
+
+  wrap.appendChild(el(`
+    <div class="card">
+      <div class="card-title">Schedule Performance (EVM)</div>
+      ${!hasSchedule ? `<div style="font-size:12.5px;color:var(--grey);">Set Start date and End date via Edit Project to activate PV, SV, and SPI.</div>` : `
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-label">PV — Planned Value</div>
+            <div class="stat-value">${fmtMoney(pv)}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">EV — Earned Value</div>
+            <div class="stat-value">${fmtMoney(ev)}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">SV — Schedule Variance</div>
+            <div class="stat-value ${sv>=0?'pos':'neg'}">${fmtMoney(sv)}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">SPI — Schedule Performance</div>
+            <div class="stat-value ${spi===null?'':(spi>=1?'pos':'neg')}">${spi===null ? '—' : spi.toFixed(2)}</div>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--grey);margin-top:4px;">
+          SV ${sv>=0?'positive':'negative'} means the project is ${sv>=0?'ahead of':'behind'} schedule in value terms. SPI ${spi!==null && spi>=1 ? '≥ 1.0 = ahead of schedule.' : spi!==null ? '< 1.0 = behind schedule.' : ''}
+        </div>
+      `}
+    </div>
+  `));
+
+  // ===== Simple bar chart: Budget vs Cost vs Final Forecast =====
+  const maxVal = Math.max(cogsTotal, totalActual, eac, 1);
+  const bars = [
+    { label: 'Original Budget', value: cogsTotal, color: 'var(--teal)' },
+    { label: 'Cost to Date', value: totalActual, color: 'var(--gold)' },
+    { label: 'EAC (Forecast)', value: eac, color: eac > cogsTotal ? 'var(--rust)' : 'var(--teal)' },
+  ];
+  const chartHeight = 160;
+  wrap.appendChild(el(`
+    <div class="card">
+      <div class="card-title">Budget vs Cost vs Final Forecast</div>
+      <div style="display:flex; align-items:flex-end; gap:24px; height:${chartHeight}px; padding-top:20px;">
+        ${bars.map(b => {
+          const h = Math.max(4, Math.round((b.value / maxVal) * chartHeight));
+          return `
+            <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%;">
+              <div style="font-size:12px; font-weight:600; margin-bottom:4px;">${fmtMoney(b.value)}</div>
+              <div style="width:60%; height:${h}px; background:${b.color}; border-radius:4px 4px 0 0;"></div>
+              <div style="font-size:11px; color:var(--grey); margin-top:6px; text-align:center;">${b.label}</div>
+            </div>
+          `;
+        }).join('')}
+      </div>
     </div>
   `));
 
@@ -2077,6 +2168,10 @@ function EditProjectModal(){
               <span id="ep-pc-value" style="font-family:'Lexend',sans-serif; font-variant-numeric:tabular-nums; font-weight:600; min-width:40px;">${d.percent_complete}%</span>
             </div>
           </div>
+          <div class="field-row">
+            <div class="field"><label>Start date (for schedule performance)</label><input type="date" name="start_date" value="${d.start_date}"></div>
+            <div class="field"><label>End date</label><input type="date" name="end_date" value="${d.end_date}"></div>
+          </div>
 
           <div class="modal-actions">
             <button type="button" class="btn secondary" id="ep-cancel">Cancel</button>
@@ -2102,6 +2197,8 @@ function EditProjectModal(){
       mos_percent: fd.get('mos_percent') || '0',
       tax_percent: fd.get('tax_percent') || '0',
       percent_complete: fd.get('percent_complete') || '0',
+      start_date: fd.get('start_date') || '',
+      end_date: fd.get('end_date') || '',
     };
     state.editProjectData = liveData;
     overlay.querySelector('#ep-pc-value').textContent = `${liveData.percent_complete}%`;

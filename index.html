@@ -243,7 +243,7 @@ let state = {
   uploadStatementType: 'pnl',
   uploadPeriodLabel: '',
   uploadExcludeKeywords: 'subtotal, balance, total',
-  uploadMapping: { category: '', subcategory: '', amount: '' },
+  uploadMapping: { category: '', subcategory: '', amount: '', period: '' },
   showLineItemModal: false,
   lineItemModalMode: 'add',
   lineItemModalType: 'pnl',
@@ -573,22 +573,23 @@ function proceedAfterParse(){
   // Check matrix/monthly template first (Type | Category | ...months... | Total)
   const matrixIdx = rows.slice(0, 10).findIndex(row => isMatrixTemplateFormat(row));
   if(matrixIdx !== -1){
+    const headerRow = rows[matrixIdx];
     const dataRows = rows.slice(matrixIdx + 1).filter(row => row.some(c => c !== undefined && String(c).trim() !== ''));
-    state.uploadFileHeaders = ['Category','Subcategory','Amount'];
-    state.uploadFileRows = transformMatrixRows(dataRows);
-    state.uploadMapping = { category: 'Category', subcategory: 'Subcategory', amount: 'Amount' };
+    state.uploadFileHeaders = ['Category','Subcategory','Amount','Period'];
+    state.uploadFileRows = transformMatrixRows(headerRow, dataRows);
+    state.uploadMapping = { category: 'Category', subcategory: 'Subcategory', amount: 'Amount', period: 'Period' };
     state.uploadTemplateDetected = true;
     state.uploadStep = 3;
     render();
     return;
   }
 
-  // Check flat template (Category | Subcategory | Amount)
+  // Check flat template (Category | Subcategory | Month | Amount)
   const templateRowIdx = rows.slice(0, 10).findIndex(row => isTemplateFormat(row));
   if(templateRowIdx !== -1){
     state.uploadHeaderRowIndex = templateRowIdx;
     buildHeadersAndRows();
-    state.uploadMapping = { category: state.uploadFileHeaders[0], subcategory: state.uploadFileHeaders[1], amount: state.uploadFileHeaders[2] };
+    state.uploadMapping = { category: state.uploadFileHeaders[0], subcategory: state.uploadFileHeaders[1], period: state.uploadFileHeaders[2], amount: state.uploadFileHeaders[3] };
     state.uploadTemplateDetected = true;
     state.uploadStep = 3;
     render();
@@ -647,7 +648,7 @@ function buildHeadersAndRows(){
 
 function isTemplateFormat(rawHeaders){
   const norm = rawHeaders.map(h => String(h || '').trim().toLowerCase());
-  return norm[0] === 'category' && norm[1] === 'subcategory' && norm[2] === 'amount';
+  return norm[0] === 'category' && norm[1] === 'subcategory' && norm[2] === 'month' && norm[3] === 'amount';
 }
 
 function isMatrixTemplateFormat(rawHeaders){
@@ -655,21 +656,48 @@ function isMatrixTemplateFormat(rawHeaders){
   return norm[0] === 'type' && norm[1] === 'category' && norm[norm.length - 1] === 'total';
 }
 
-function transformMatrixRows(dataRows){
-  return dataRows.map(row => {
+function parseFlexibleMonth(label){
+  const MONTH_MAP = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+  const s = String(label || '').trim().toLowerCase();
+  const m = s.match(/^([a-z]{3,})/);
+  if(!m) return null;
+  const abbr = m[1].slice(0,3);
+  if(!(abbr in MONTH_MAP)) return null;
+  const yearMatch = s.match(/(\d{2,4})/);
+  let year;
+  if(yearMatch){
+    year = yearMatch[1].length === 2 ? 2000 + parseInt(yearMatch[1],10) : parseInt(yearMatch[1],10);
+  } else {
+    year = new Date().getFullYear();
+  }
+  return `${year}-${String(MONTH_MAP[abbr]).padStart(2,'0')}`;
+}
+
+function transformMatrixRows(headerRow, dataRows){
+  const headers = headerRow.map(h => String(h || '').trim());
+  const monthCols = [];
+  for(let i = 2; i < headers.length - 1; i++){
+    const period = parseFlexibleMonth(headers[i]);
+    if(period) monthCols.push({ idx: i, period });
+  }
+  const result = [];
+  dataRows.forEach(row => {
     const type = String(row[0] || '').trim();
     const itemName = String(row[1] || '').trim();
-    const totalRaw = row[row.length - 1];
-    let amount = parseFloat(String(totalRaw).replace(/[^0-9.-]/g,'')) || 0;
     const t = type.toLowerCase();
     const isOutflow = /out|cogs|expense|cost|opex/.test(t);
     const isInflow = /in|revenue|income/.test(t);
-    if(isOutflow && amount > 0) amount = -amount;
-    if(isInflow && amount < 0) amount = Math.abs(amount);
-    // Type (e.g. Cash-In/Cash-Out, Revenue/COGS/Opex) is the top-level Category;
-    // the specific item name becomes the Subcategory beneath it.
-    return { Category: type, Subcategory: itemName, Amount: amount };
+    monthCols.forEach(({ idx, period }) => {
+      const raw = row[idx];
+      if(raw === undefined || raw === null || String(raw).trim() === '') return;
+      let amount = parseFloat(String(raw).replace(/[^0-9.-]/g,'')) || 0;
+      if(amount === 0) return;
+      if(isOutflow && amount > 0) amount = -amount;
+      if(isInflow && amount < 0) amount = Math.abs(amount);
+      result.push({ Category: type, Subcategory: itemName, Amount: amount, Period: period });
+    });
   });
+  return result;
 }
 
 function autoDetectMapping(){
@@ -677,12 +705,14 @@ function autoDetectMapping(){
   const findMatch = (keywords) => headers.find(h => keywords.some(k => h.toLowerCase().includes(k))) || '';
   state.uploadMapping.category = findMatch(['activities','category','item','description','account']);
   state.uploadMapping.subcategory = findMatch(['subcategory','sub-category','detail']);
+  state.uploadMapping.period = findMatch(['month','period','date']);
   state.uploadMapping.amount = findMatch(['total value','total price','amount','value','total']);
 }
 
 async function confirmUpload(){
-  const { category, subcategory, amount } = state.uploadMapping;
+  const { category, subcategory, amount, period } = state.uploadMapping;
   if(!category || !amount){ alert('Please map the Category and Amount columns.'); return; }
+  if(!period){ alert('Please map the Month column — PROFIT requires a month on every line item.'); return; }
 
   const excludeList = state.uploadExcludeKeywords.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
 
@@ -697,19 +727,47 @@ async function confirmUpload(){
 
   if(upErr){ alert(upErr.message); return; }
 
-  const items = state.uploadFileRows.map(row => ({
-    upload_id: uploadRow.id,
-    project_id: state.selectedProjectId,
-    statement_type: state.uploadStatementType,
-    category: String(row[category] || '').trim(),
-    subcategory: subcategory ? String(row[subcategory] || '').trim() : null,
-    amount: parseFloat(String(row[amount]).replace(/[^0-9.-]/g,'')) || 0
-  })).filter(r => r.category && !excludeList.some(k => r.category.toLowerCase().includes(k)));
+  const items = [];
+  const skippedNoMonth = [];
+  state.uploadFileRows.forEach(row => {
+    const cat = String(row[category] || '').trim();
+    if(!cat || excludeList.some(k => cat.toLowerCase().includes(k))) return;
+    let periodVal = row[period];
+    let periodDate = null;
+    if(periodVal !== undefined && periodVal !== null && String(periodVal).trim() !== ''){
+      const s = String(periodVal).trim();
+      if(/^\d{4}-\d{2}(-\d{2})?$/.test(s)){
+        periodDate = s.length === 7 ? `${s}-01` : s;
+      } else {
+        const parsed = parseFlexibleMonth(s);
+        periodDate = parsed ? `${parsed}-01` : null;
+      }
+    }
+    if(!periodDate){ skippedNoMonth.push(cat); return; }
+    items.push({
+      upload_id: uploadRow.id,
+      project_id: state.selectedProjectId,
+      statement_type: state.uploadStatementType,
+      category: cat,
+      subcategory: subcategory ? String(row[subcategory] || '').trim() : null,
+      amount: parseFloat(String(row[amount]).replace(/[^0-9.-]/g,'')) || 0,
+      period: periodDate,
+    });
+  });
 
-  if(items.length === 0){ alert('No rows to import after filtering. Check your mapping or exclude keywords.'); return; }
+  if(items.length === 0){
+    alert(skippedNoMonth.length > 0
+      ? `No rows imported — ${skippedNoMonth.length} row(s) had a Category but no valid Month value. Every row needs a recognizable month (e.g. "2026-01" or "Jan-26").`
+      : 'No rows to import after filtering. Check your mapping or exclude keywords.');
+    return;
+  }
 
   const { error: itemErr } = await sb.from('line_items').insert(items);
   if(itemErr){ alert(itemErr.message); return; }
+
+  if(skippedNoMonth.length > 0){
+    alert(`Imported ${items.length} row(s). Skipped ${skippedNoMonth.length} row(s) with no valid Month value.`);
+  }
 
   closeUploadModal();
   await loadProjectData(state.selectedProjectId);
@@ -727,7 +785,7 @@ function closeUploadModal(){
   state.uploadFileHeaders = [];
   state.uploadPeriodLabel = '';
   state.uploadExcludeKeywords = 'subtotal, balance, total';
-  state.uploadMapping = { category:'', subcategory:'', amount:'' };
+  state.uploadMapping = { category:'', subcategory:'', amount:'', period:'' };
 }
 
 function deleteUpload(uploadId, fileName){
@@ -853,11 +911,15 @@ async function saveLineItem(){
     alert('Please fill in Category and Amount (number).');
     return;
   }
+  if(!period){
+    alert('Month is required — PROFIT needs a month on every entry to power Grid view, Forecast, and monthly trend reporting.');
+    return;
+  }
   const payload = {
     category: category.trim(),
     subcategory: subcategory && subcategory.trim() ? subcategory.trim() : null,
     amount: parseFloat(amount),
-    period: period ? `${period}-01` : null,
+    period: `${period}-01`,
     status: status === 'forecast' ? 'forecast' : 'actual',
   };
   if(id){
@@ -2198,6 +2260,7 @@ function UploadModal(){
       <div class="page-sub" style="margin-bottom:14px;">${state.uploadFileRows.length} rows detected (after header row)</div>
       <div class="field"><label>Category (required)</label><select id="map-category">${opts(state.uploadMapping.category)}</select></div>
       <div class="field"><label>Subcategory (optional)</label><select id="map-subcategory">${opts(state.uploadMapping.subcategory)}</select></div>
+      <div class="field"><label>Month (required)</label><select id="map-period">${opts(state.uploadMapping.period)}</select></div>
       <div class="field"><label>Amount (required)</label><select id="map-amount">${opts(state.uploadMapping.amount)}</select></div>
       <div class="field">
         <label>Skip rows if Category contains (comma-separated)</label>
@@ -2210,6 +2273,7 @@ function UploadModal(){
     `;
     modal.querySelector('#map-category').addEventListener('change', (e) => state.uploadMapping.category = e.target.value);
     modal.querySelector('#map-subcategory').addEventListener('change', (e) => state.uploadMapping.subcategory = e.target.value);
+    modal.querySelector('#map-period').addEventListener('change', (e) => state.uploadMapping.period = e.target.value);
     modal.querySelector('#map-amount').addEventListener('change', (e) => state.uploadMapping.amount = e.target.value);
     modal.querySelector('#exclude-keywords').addEventListener('input', (e) => state.uploadExcludeKeywords = e.target.value);
     modal.querySelector('#up-back').addEventListener('click', () => { state.uploadStep = 2; render(); });
@@ -2442,7 +2506,7 @@ function LineItemModal(){
           </div>
           <div class="field-row">
             <div class="field"><label>Amount (RM) — negative for outflow/expense</label><input type="number" step="0.01" name="amount" value="${d.amount}" placeholder="e.g. -4500 or 15000" required></div>
-            <div class="field"><label>Month (optional)</label><input type="month" name="period" value="${d.period}"></div>
+            <div class="field"><label>Month (required)</label><input type="month" name="period" value="${d.period}" required></div>
           </div>
           <div class="field">
             <label>Status</label>

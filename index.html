@@ -1131,7 +1131,7 @@ function MainPanel(){
         <div class="page-sub">${isConsolidated ? 'All projects — PnL & Cashflow combined' : (project.description || 'Project PnL & Cashflow')}</div>
       </div>
       <div style="display:flex; gap:8px;">
-        ${(!isConsolidated && isAdmin) ? `<button class="btn secondary" id="edit-project-btn">✎ Edit Project</button>` : ''}
+        ${(!isConsolidated && isAdmin) ? `<button class="btn secondary" id="edit-project-btn">Edit Project</button>` : ''}
         ${!isConsolidated ? `<button class="btn" id="upload-btn">+ Upload data</button>` : ''}
       </div>
     </div>

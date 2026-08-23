@@ -568,7 +568,7 @@ function pickBestSheet(wb){
 
 function looksLikeInstructionsSheet(rows){
   const sample = rows.slice(0, 3).map(r => String(r[0] || '').toLowerCase()).join(' ');
-  return sample.includes('cara guna template');
+  return sample.includes('how to use this template');
 }
 
 function proceedAfterParse(){
@@ -602,7 +602,7 @@ function proceedAfterParse(){
 
   // Neither template format matched — check if this is clearly the instructions tab
   if(looksLikeInstructionsSheet(rows)){
-    alert('The file/tab being read looks like the "Cara Guna" (instructions) tab, not the PnL or Cashflow tab.\n\nPlease make sure:\n1. You upload the FULL .xlsx file (not a single-tab CSV)\n2. The selected "Statement type" (PnL/Cashflow) matches the tab that has data\n\nTry selecting the file again.');
+    alert('The file/tab being read looks like the "How To Use" (instructions) tab, not the PnL or Cashflow tab.\n\nPlease make sure:\n1. You upload the FULL .xlsx file (not a single-tab CSV)\n2. The selected "Statement type" (PnL/Cashflow) matches the tab that has data\n\nTry selecting the file again.');
     closeUploadModal();
     state.showUploadModal = true;
     render();

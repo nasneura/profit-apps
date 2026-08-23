@@ -9,6 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html-docx-js@0.3.1/dist/html-docx.js"></script>
 <style>
   :root{
     --ink:#171721;
@@ -245,6 +246,7 @@ let state = {
   uploadPeriodLabel: '',
   uploadExcludeKeywords: 'subtotal, balance, total',
   uploadMapping: { category: '', subcategory: '', amount: '', period: '' },
+  charterFormData: null,
   showLineItemModal: false,
   lineItemModalMode: 'add',
   lineItemModalType: 'pnl',
@@ -1244,6 +1246,7 @@ function MainPanel(){
           <div class="tab ${state.activeTab==='budget'?'active':''}" data-tab="budget">Budget</div>
           <div class="tab ${state.activeTab==='performance'?'active':''}" data-tab="performance">Performance Analysis</div>
           <div class="tab ${state.activeTab==='alerts'?'active':''}" data-tab="alerts">Alerts</div>
+          <div class="tab ${state.activeTab==='charter'?'active':''}" data-tab="charter">Charter</div>
           <div class="tab ${state.activeTab==='uploads'?'active':''}" data-tab="uploads">Uploads</div>
         </div>
         <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
@@ -1253,7 +1256,7 @@ function MainPanel(){
               <button type="button" id="view-grid-btn" class="btn pill small ${state.viewMode==='grid'?'':'secondary'}" style="border:none; border-radius:0;">Grid</button>
             </div>
           ` : ''}
-          ${(state.activeTab!=='uploads' && state.activeTab!=='forecast' && state.activeTab!=='budget' && state.activeTab!=='performance' && state.activeTab!=='alerts' && !(showViewToggle && state.viewMode==='grid') && periods.length>0) ? `
+          ${(state.activeTab!=='uploads' && state.activeTab!=='forecast' && state.activeTab!=='budget' && state.activeTab!=='performance' && state.activeTab!=='alerts' && state.activeTab!=='charter' && !(showViewToggle && state.viewMode==='grid') && periods.length>0) ? `
             <select id="period-filter" style="width:auto;padding:6px 9px;font-size:12.5px;">
               <option value="all" ${state.periodFilter==='all'?'selected':''}>All months</option>
               ${periods.map(p => `<option value="${p}" ${state.periodFilter===p?'selected':''}>${fmtPeriod(p+'-01')}</option>`).join('')}
@@ -1288,6 +1291,7 @@ function MainPanel(){
     if(state.activeTab === 'budget') main.appendChild(BudgetView(project));
     if(state.activeTab === 'performance') main.appendChild(PerformanceView(project));
     if(state.activeTab === 'alerts') main.appendChild(AlertsView(project));
+    if(state.activeTab === 'charter') main.appendChild(CharterView(project));
     if(state.activeTab === 'uploads') main.appendChild(UploadsView());
   } else {
     if(state.consolidatedTab === 'pnl') main.appendChild(ConsolidatedPnLView());
@@ -2087,6 +2091,164 @@ function PerformanceView(project){
   `));
 
   return wrap;
+}
+
+function CharterView(project){
+  const wrap = el(`<div></div>`);
+  const isAdmin = state.profile && state.profile.role === 'admin';
+
+  if(!state.charterFormData || state.charterFormData._projectId !== project.id){
+    state.charterFormData = {
+      _projectId: project.id,
+      objectives: project.objectives || '',
+      scope_in: project.scope_in || '',
+      scope_out: project.scope_out || '',
+      stakeholders: project.stakeholders || '',
+      risks: project.risks || '',
+      success_criteria: project.success_criteria || '',
+      approved_by: project.approved_by || '',
+      approved_date: project.approved_date || '',
+    };
+  }
+  const d = state.charterFormData;
+
+  const downloadBar = el(`
+    <div style="display:flex; justify-content:flex-end; margin-bottom:14px;">
+      <button class="btn pill" id="download-charter-btn">Download Project Charter (Word)</button>
+    </div>
+  `);
+  downloadBar.querySelector('#download-charter-btn').addEventListener('click', () => downloadProjectCharter(project));
+  wrap.appendChild(downloadBar);
+
+  const field = (label, key, isTextarea = true, type = 'text') => `
+    <div class="field">
+      <label>${label}</label>
+      ${isTextarea
+        ? `<textarea name="${key}" rows="3" ${!isAdmin?'disabled':''}>${d[key]}</textarea>`
+        : `<input type="${type}" name="${key}" value="${d[key]}" ${!isAdmin?'disabled':''}>`}
+    </div>
+  `;
+
+  const form = el(`
+    <div class="card">
+      <div class="card-title">Project Charter</div>
+      ${!isAdmin ? `<div style="font-size:12px;color:var(--grey);margin-bottom:10px;">Only admins can edit the charter. You can still download it below.</div>` : ''}
+      <form id="charter-form">
+        ${field('Objectives / Purpose', 'objectives')}
+        <div class="field-row">
+          ${field('Scope — In', 'scope_in')}
+          ${field('Scope — Out', 'scope_out')}
+        </div>
+        ${field('Key Stakeholders (name — role, one per line)', 'stakeholders')}
+        ${field('Risks & Assumptions', 'risks')}
+        ${field('Success Criteria', 'success_criteria')}
+        <div class="field-row">
+          ${field('Approved By', 'approved_by', false)}
+          ${field('Approval Date', 'approved_date', false, 'date')}
+        </div>
+        ${isAdmin ? `<button type="submit" class="btn pill">Save Charter</button>` : ''}
+      </form>
+    </div>
+  `);
+
+  if(isAdmin){
+    const charterForm = form.querySelector('#charter-form');
+    charterForm.addEventListener('input', () => {
+      const fd = new FormData(charterForm);
+      ['objectives','scope_in','scope_out','stakeholders','risks','success_criteria','approved_by','approved_date'].forEach(k => {
+        d[k] = fd.get(k) || '';
+      });
+    });
+    charterForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      saveCharter(project.id, d);
+    });
+  }
+
+  wrap.appendChild(form);
+  return wrap;
+}
+
+async function saveCharter(projectId, d){
+  const payload = {
+    objectives: d.objectives || null,
+    scope_in: d.scope_in || null,
+    scope_out: d.scope_out || null,
+    stakeholders: d.stakeholders || null,
+    risks: d.risks || null,
+    success_criteria: d.success_criteria || null,
+    approved_by: d.approved_by || null,
+    approved_date: d.approved_date || null,
+  };
+  const { error } = await sb.from('projects').update(payload).eq('id', projectId);
+  if(error){ alert(error.message); return; }
+  await loadProfileAndProjects();
+  render();
+}
+
+function downloadProjectCharter(project){
+  const budgetItems = state.budgetItems || [];
+  const cogsTotal = budgetItems.reduce((s,b) => s + Number(b.budget_amount), 0);
+  const contractValue = Number(project.contract_value) || 0;
+  const sstAmount = contractValue * (Number(project.sst_percent)||0) / 100;
+  const totalContractValue = contractValue + sstAmount;
+  const depositAmount = contractValue * (Number(project.deposit_percent)||0) / 100;
+  const d = state.charterFormData || {};
+  const nl2p = (text) => (text || '—').split('\n').filter(l=>l.trim()).map(l => `<p>${l}</p>`).join('') || '<p>—</p>';
+
+  const html = `
+    <!DOCTYPE html><html><head><meta charset="utf-8"><title>${project.name} — Project Charter</title></head>
+    <body style="font-family:Calibri,Arial,sans-serif; font-size:11pt; color:#1a1a1a;">
+      <h1 style="font-size:22pt; margin-bottom:2pt;">${project.name}</h1>
+      <p style="color:#555; margin-top:0;">${project.client_name || ''}${project.client_name && project.location ? ' — ' : ''}${project.location || ''}</p>
+      <h2 style="font-size:14pt; border-bottom:1pt solid #ccc; padding-bottom:4pt;">Project Charter</h2>
+
+      <h3 style="font-size:12pt;">Objectives / Purpose</h3>
+      ${nl2p(d.objectives)}
+
+      <h3 style="font-size:12pt;">Scope</h3>
+      <p><strong>In scope:</strong></p>
+      ${nl2p(d.scope_in)}
+      <p><strong>Out of scope:</strong></p>
+      ${nl2p(d.scope_out)}
+
+      <h3 style="font-size:12pt;">Key Stakeholders</h3>
+      ${nl2p(d.stakeholders)}
+
+      <h3 style="font-size:12pt;">Timeline</h3>
+      <p>Start: ${project.start_date ? fmtPeriod(project.start_date) : '—'} &nbsp;&nbsp; End: ${project.end_date ? fmtPeriod(project.end_date) : '—'}</p>
+
+      <h3 style="font-size:12pt;">Budget Summary</h3>
+      <table style="border-collapse:collapse; width:100%;">
+        <tr><td style="padding:4pt; border-bottom:1pt solid #eee;">Contract Value (excl. SST)</td><td style="padding:4pt; border-bottom:1pt solid #eee; text-align:right;">${fmtMoney(contractValue)}</td></tr>
+        <tr><td style="padding:4pt; border-bottom:1pt solid #eee;">SST (${project.sst_percent||0}%)</td><td style="padding:4pt; border-bottom:1pt solid #eee; text-align:right;">${fmtMoney(sstAmount)}</td></tr>
+        <tr><td style="padding:4pt; border-bottom:1pt solid #eee;"><strong>Total Contract Value</strong></td><td style="padding:4pt; border-bottom:1pt solid #eee; text-align:right;"><strong>${fmtMoney(totalContractValue)}</strong></td></tr>
+        <tr><td style="padding:4pt; border-bottom:1pt solid #eee;">Deposit Required (${project.deposit_percent||0}%)</td><td style="padding:4pt; border-bottom:1pt solid #eee; text-align:right;">${fmtMoney(depositAmount)}</td></tr>
+        <tr><td style="padding:4pt; border-bottom:1pt solid #eee;">Total Budgeted Cost (COGS)</td><td style="padding:4pt; border-bottom:1pt solid #eee; text-align:right;">${fmtMoney(cogsTotal)}</td></tr>
+      </table>
+
+      <h3 style="font-size:12pt;">Success Criteria</h3>
+      ${nl2p(d.success_criteria)}
+
+      <h3 style="font-size:12pt;">Risks & Assumptions</h3>
+      ${nl2p(d.risks)}
+
+      <h3 style="font-size:12pt;">Approval</h3>
+      <p>Approved by: ${d.approved_by || '—'} &nbsp;&nbsp; Date: ${d.approved_date ? fmtPeriod(d.approved_date) : '—'}</p>
+
+      <p style="color:#999; font-size:9pt; margin-top:24pt;">Generated by PROFIT — Project Financial Tracking on ${new Date().toLocaleDateString()}</p>
+    </body></html>
+  `;
+
+  const blob = htmlDocx.asBlob(html);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${project.name.replace(/[^a-z0-9]+/gi,'_')}_Project_Charter.doc`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function AlertsView(project){

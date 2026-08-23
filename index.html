@@ -103,7 +103,7 @@
     padding:10px 16px; font-size:13px; font-weight:500; color:var(--grey); cursor:pointer;
     border-bottom:2px solid transparent; margin-bottom:-1px;
   }
-  .tab.active{ color:var(--ink); border-bottom-color:var(--teal); }
+  .tab.active{ color:var(--teal); border-bottom-color:var(--teal); font-weight:600; }
 
   .btn{
     font-family:'Lexend',sans-serif; font-size:13px; font-weight:600; padding:14px 24px 14px 26px; border-radius:0 32px 32px 0;
@@ -159,7 +159,7 @@
   .grid-cell-input:focus{ border-color:var(--gold); background:var(--panel-alt); outline:none; }
 
   .empty-state{ text-align:center; padding:60px 20px; color:var(--grey); }
-  .empty-state .big{ font-family:'Lexend',sans-serif; font-weight:700; font-size:20px; color:var(--ink); margin-bottom:8px; }
+  .empty-state .big{ font-family:'Lexend',sans-serif; font-weight:700; font-size:20px; color:var(--text); margin-bottom:8px; }
 
   .upload-list{ display:flex; flex-direction:column; gap:8px; }
   .upload-row{ display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:var(--paper-dim); border-radius:5px; font-size:13px; }
@@ -185,7 +185,7 @@
     background:none; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center;
     color:var(--grey); padding:0;
   }
-  .pw-toggle:hover{ color:var(--ink); }
+  .pw-toggle:hover{ color:var(--text); }
   .pw-toggle svg{ width:18px; height:18px; }
   .info-msg{ background:var(--teal-soft); color:var(--teal); padding:9px 12px; border-radius:5px; font-size:12.5px; margin-bottom:14px; }
 
@@ -1292,14 +1292,17 @@ function SummaryView(items, project){
       <div class="stat-card">
         <div class="stat-label">Net PnL</div>
         <div class="stat-value ${pnl>=0?'pos':'neg'}">${fmtMoney(pnl)}</div>
+        <div style="font-size:10.5px;color:var(--grey);margin-top:5px;">Revenue minus Expenses (accounting profit) for the selected month</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Net Cashflow</div>
         <div class="stat-value ${cf>=0?'pos':'neg'}">${fmtMoney(cf)}</div>
+        <div style="font-size:10.5px;color:var(--grey);margin-top:5px;">Cash In minus Cash Out (actual money movement) for the selected month</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Line items</div>
         <div class="stat-value">${items.length}</div>
+        <div style="font-size:10.5px;color:var(--grey);margin-top:5px;">Number of entries shown, for the selected month</div>
       </div>
     </div>
   `));
@@ -1329,12 +1332,33 @@ function SummaryView(items, project){
     const endingBalance = months.length > 0 ? running : openingBalance + netPosition;
 
     wrap.appendChild(el(`
+      <div class="page-sub" style="margin:-4px 0 10px;">The 5 cards below always reflect the <strong>full project timeline</strong> (Actual + Forecast combined) — independent of the month filter above.</div>
       <div class="stat-grid">
-        <div class="stat-card"><div class="stat-label">Total Cash In</div><div class="stat-value pos">${fmtMoney(totalCashIn)}</div></div>
-        <div class="stat-card"><div class="stat-label">Total Cash Out</div><div class="stat-value neg">${fmtMoney(totalCashOut)}</div></div>
-        <div class="stat-card"><div class="stat-label">Net Cash Position</div><div class="stat-value ${netPosition>=0?'pos':'neg'}">${fmtMoney(netPosition)}</div></div>
-        <div class="stat-card"><div class="stat-label">Min. Balance</div><div class="stat-value ${minBalance>=0?'pos':'neg'}">${fmtMoney(minBalance)}</div></div>
-        <div class="stat-card"><div class="stat-label">Ending Cash Balance</div><div class="stat-value ${endingBalance>=0?'pos':'neg'}">${fmtMoney(endingBalance)}</div></div>
+        <div class="stat-card">
+          <div class="stat-label">Total Cash In</div>
+          <div class="stat-value pos">${fmtMoney(totalCashIn)}</div>
+          <div style="font-size:10.5px;color:var(--grey);margin-top:5px;">All money coming in, whole project</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Cash Out</div>
+          <div class="stat-value neg">${fmtMoney(totalCashOut)}</div>
+          <div style="font-size:10.5px;color:var(--grey);margin-top:5px;">All money going out, whole project</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Net Cash Position</div>
+          <div class="stat-value ${netPosition>=0?'pos':'neg'}">${fmtMoney(netPosition)}</div>
+          <div style="font-size:10.5px;color:var(--grey);margin-top:5px;">Cash In minus Cash Out, whole project</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Min. Balance</div>
+          <div class="stat-value ${minBalance>=0?'pos':'neg'}">${fmtMoney(minBalance)}</div>
+          <div style="font-size:10.5px;color:var(--grey);margin-top:5px;">Lowest point the balance ever reaches, from Opening Balance across every month recorded</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Ending Cash Balance</div>
+          <div class="stat-value ${endingBalance>=0?'pos':'neg'}">${fmtMoney(endingBalance)}</div>
+          <div style="font-size:10.5px;color:var(--grey);margin-top:5px;">Projected balance after the last month with data — not necessarily today</div>
+        </div>
       </div>
     `));
 
@@ -2394,11 +2418,11 @@ function UploadModal(){
         <label>Don't have the template?</label>
         <div style="display:flex; flex-direction:column; gap:8px;">
           <a href="/docs/templates/PnL_Cashflow_Template.xlsx" download class="template-link-card" style="border-color:var(--teal); background:var(--teal-soft);">
-            <div style="font-weight:700; font-size:13px; color:var(--ink);">Flat template</div>
+            <div style="font-weight:700; font-size:13px; color:var(--text);">Flat template</div>
             <div style="font-size:11.5px; color:var(--grey); margin-top:2px;">Simple list — one row per item (Category, Subcategory, Amount)</div>
           </a>
           <a href="/docs/templates/PnL_Cashflow_Template_Monthly.xlsx" download class="template-link-card" style="border-color:var(--gold); background:var(--gold-soft);">
-            <div style="font-weight:700; font-size:13px; color:var(--ink);">Monthly template</div>
+            <div style="font-weight:700; font-size:13px; color:var(--text);">Monthly template</div>
             <div style="font-size:11.5px; color:var(--grey); margin-top:2px;">Month-by-month columns — use if your data is already broken down by month</div>
           </a>
         </div>

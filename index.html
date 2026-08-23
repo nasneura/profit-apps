@@ -2084,8 +2084,18 @@ function UploadModal(){
         <label>Period label (optional)</label>
         <input type="text" id="period-label" placeholder="e.g. Jan 2026, FY2025" value="${state.uploadPeriodLabel}">
       </div>
-      <div class="field" style="background:var(--paper-dim); padding:10px 12px; border-radius:6px; font-size:12.5px;">
-        Don't have the template? <a href="/docs/templates/PnL_Cashflow_Template.xlsx" download style="color:var(--teal); font-weight:600;">Download flat template</a> · <a href="/docs/templates/PnL_Cashflow_Template_Monthly.xlsx" download style="color:var(--teal); font-weight:600;">Download monthly template</a>
+      <div class="field">
+        <label>Don't have the template?</label>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <a href="/docs/templates/PnL_Cashflow_Template.xlsx" download style="display:block; text-decoration:none; border:1px solid var(--line); border-radius:6px; padding:10px 12px; background:#fff;">
+            <div style="font-weight:700; font-size:13px; color:var(--ink);">Flat template</div>
+            <div style="font-size:11.5px; color:var(--grey); margin-top:2px;">Simple list — one row per item (Category, Subcategory, Amount)</div>
+          </a>
+          <a href="/docs/templates/PnL_Cashflow_Template_Monthly.xlsx" download style="display:block; text-decoration:none; border:1px solid var(--line); border-radius:6px; padding:10px 12px; background:#fff;">
+            <div style="font-weight:700; font-size:13px; color:var(--ink);">Monthly template</div>
+            <div style="font-size:11.5px; color:var(--grey); margin-top:2px;">Month-by-month columns — use if your data is already broken down by month</div>
+          </a>
+        </div>
       </div>
       <div class="field">
         <label>CSV / Excel file</label>

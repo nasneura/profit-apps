@@ -2212,7 +2212,7 @@ function buildCharterHTML(project, forPrint){
 
   const d = state.charterFormData || {};
   const nl2p = (text) => (text || '—').split('\n').filter(l=>l.trim()).map(l => `<p>${l}</p>`).join('') || '<p>—</p>';
-  const printStyle = forPrint ? `<style>@media print{ @page{ margin:18mm; } body{ -webkit-print-color-adjust:exact; } }</style>` : '';
+  const printStyle = forPrint ? `<style>@media print{ @page{ margin:0.5in; } body{ -webkit-print-color-adjust:exact; } }</style>` : '';
 
   const budgetRowsHtml = budgetItems.map(b => {
     const actual = actualFor(b.category);
@@ -2221,10 +2221,12 @@ function buildCharterHTML(project, forPrint){
   }).join('');
 
   return `
-    <!DOCTYPE html><html><head><meta charset="utf-8"><title>${project.name} — Project Charter</title>${printStyle}
+    <!DOCTYPE html><html><head><meta charset="utf-8"><title>${project.name} — Project Charter</title>
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&display=swap" rel="stylesheet">
+    ${printStyle}
     <style>
       * { box-sizing:border-box; }
-      body { margin:0; font-family:Calibri,Arial,sans-serif; color:#1a1a1a; }
+      body { margin:0; font-family:'Lexend',Calibri,Arial,sans-serif; color:#1a1a1a; }
       .header { background:#101A2C; color:#fff; padding:30px 40px 24px; }
       .header .tag { font-size:9.5px; letter-spacing:0.15em; text-transform:uppercase; color:#7FB8AE; font-weight:700; margin-bottom:7px; }
       .header h1 { font-size:22px; font-weight:700; margin:0 0 4px; }
@@ -2355,7 +2357,7 @@ function buildCharterHTML(project, forPrint){
 
 function downloadProjectCharterWord(project){
   const html = buildCharterHTML(project, false);
-  const blob = htmlDocx.asBlob(html);
+  const blob = htmlDocx.asBlob(html, { margins: { top: 720, right: 720, bottom: 720, left: 720 } });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

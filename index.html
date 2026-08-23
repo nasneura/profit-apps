@@ -2049,7 +2049,12 @@ function AlertsView(project){
   `));
 
   if(alerts.length === 0){
-    wrap.appendChild(el(`<div class="empty-state"><div class="big">No issues detected</div><div>PROFIT checks budget limits, cash balance, margin, and spend pace automatically — nothing flagged right now.</div></div>`));
+    wrap.appendChild(el(`
+      <div class="card">
+        <div style="font-size:14px; font-weight:600; margin-bottom:4px;">No issues detected</div>
+        <div style="font-size:13px; color:var(--grey);">PROFIT checks budget limits, cash balance, margin, and spend pace automatically — nothing flagged right now.</div>
+      </div>
+    `));
     return wrap;
   }
 
@@ -2228,8 +2233,8 @@ function ConsolidatedView(){
   const { pnl, cf } = computeTotals(state.lineItems);
   wrap.appendChild(el(`
     <div class="stat-grid">
-      <div class="stat-card"><div class="stat-label">Total Net PnL (semua project)</div><div class="stat-value ${pnl>=0?'pos':'neg'}">${fmtMoney(pnl)}</div></div>
-      <div class="stat-card"><div class="stat-label">Total Net Cashflow (semua project)</div><div class="stat-value ${cf>=0?'pos':'neg'}">${fmtMoney(cf)}</div></div>
+      <div class="stat-card"><div class="stat-label">Total Net PnL (all projects)</div><div class="stat-value ${pnl>=0?'pos':'neg'}">${fmtMoney(pnl)}</div></div>
+      <div class="stat-card"><div class="stat-label">Total Net Cashflow (all projects)</div><div class="stat-value ${cf>=0?'pos':'neg'}">${fmtMoney(cf)}</div></div>
       <div class="stat-card"><div class="stat-label">Total projects</div><div class="stat-value">${state.projects.length}</div></div>
     </div>
   `));

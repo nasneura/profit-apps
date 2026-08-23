@@ -2195,51 +2195,160 @@ function buildCharterHTML(project, forPrint){
   const sstAmount = contractValue * (Number(project.sst_percent)||0) / 100;
   const totalContractValue = contractValue + sstAmount;
   const depositAmount = contractValue * (Number(project.deposit_percent)||0) / 100;
+  const totalActual = budgetItems.reduce((s,b) => s + actualFor(b.category), 0);
+  const totalVariance = cogsTotal - totalActual;
+
+  const grossProfit = contractValue - cogsTotal;
+  const taxAmount = grossProfit * (Number(project.tax_percent)||0) / 100;
+  const netProfit = grossProfit - taxAmount;
+  const netMargin = contractValue > 0 ? (netProfit / contractValue * 100) : 0;
+
+  const pc = Math.max(0, Math.min(100, Number(project.percent_complete) || 0));
+  const eac = pc > 0 ? totalActual / (pc / 100) : cogsTotal;
+  const etc = Math.max(0, eac - totalActual);
+  const vac = cogsTotal - eac;
+  const ev = cogsTotal * (pc / 100);
+  const cpi = pc > 0 && totalActual > 0 ? ev / totalActual : null;
+
   const d = state.charterFormData || {};
   const nl2p = (text) => (text || '—').split('\n').filter(l=>l.trim()).map(l => `<p>${l}</p>`).join('') || '<p>—</p>';
   const printStyle = forPrint ? `<style>@media print{ @page{ margin:18mm; } body{ -webkit-print-color-adjust:exact; } }</style>` : '';
 
+  const budgetRowsHtml = budgetItems.map(b => {
+    const actual = actualFor(b.category);
+    const variance = Number(b.budget_amount) - actual;
+    return `<tr><td>${b.category}</td><td class="num">${fmtMoney(b.budget_amount)}</td><td class="num">${fmtMoney(actual)}</td><td class="num ${variance>=0?'pos':'neg'}">${fmtMoney(variance)}</td></tr>`;
+  }).join('');
+
   return `
-    <!DOCTYPE html><html><head><meta charset="utf-8"><title>${project.name} — Project Charter</title>${printStyle}</head>
-    <body style="font-family:Calibri,Arial,sans-serif; font-size:11pt; color:#1a1a1a;">
-      <h1 style="font-size:22pt; margin-bottom:2pt;">${project.name}</h1>
-      <p style="color:#555; margin-top:0;">${project.client_name || ''}${project.client_name && project.location ? ' — ' : ''}${project.location || ''}</p>
-      <h2 style="font-size:14pt; border-bottom:1pt solid #ccc; padding-bottom:4pt;">Project Charter</h2>
+    <!DOCTYPE html><html><head><meta charset="utf-8"><title>${project.name} — Project Charter</title>${printStyle}
+    <style>
+      * { box-sizing:border-box; }
+      body { margin:0; font-family:Calibri,Arial,sans-serif; color:#1a1a1a; }
+      .header { background:#101A2C; color:#fff; padding:30px 40px 24px; }
+      .header .tag { font-size:9.5px; letter-spacing:0.15em; text-transform:uppercase; color:#7FB8AE; font-weight:700; margin-bottom:7px; }
+      .header h1 { font-size:22px; font-weight:700; margin:0 0 4px; }
+      .header .sub { font-size:11.5px; color:#B8C0D4; }
+      .accent-bar { height:3px; background:linear-gradient(90deg,#2F8F86,#B96E17); }
+      .body { padding:26px 40px 36px; }
+      .section { margin-bottom:20px; }
+      .section-title { font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#101A2C; margin-bottom:7px; }
+      .section p { font-size:11.5px; line-height:1.55; color:#333; margin:0 0 4px; }
+      .two-col { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+      table.budget-table { width:100%; border-collapse:collapse; font-size:11px; }
+      table.budget-table th { text-align:left; font-size:9px; text-transform:uppercase; letter-spacing:0.04em; color:#6B6A63; padding:6px 0; border-bottom:1.5px solid #101A2C; }
+      table.budget-table th.num, table.budget-table td.num { text-align:right; }
+      table.budget-table td { padding:6px 0; border-bottom:1px solid #EFEBE0; }
+      table.budget-table tr.total td { border-top:1.5px solid #101A2C; border-bottom:none; font-weight:700; padding-top:7px; }
+      .pos { color:#2F8F86; } .neg { color:#B23B3B; }
+      .card-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; }
+      .card-grid.c3 { grid-template-columns:repeat(3,1fr); }
+      .stat-card { background:#F7F5EF; border-radius:6px; padding:9px 11px; }
+      .stat-card .label { font-size:8.5px; text-transform:uppercase; letter-spacing:0.04em; color:#6B6A63; margin-bottom:3px; }
+      .stat-card .value { font-size:13px; font-weight:700; color:#101A2C; }
+      .footer { border-top:1px solid #EFEBE0; padding-top:12px; margin-top:22px; display:flex; justify-content:space-between; align-items:center; }
+      .footer .brand { font-size:10.5px; font-weight:700; color:#101A2C; }
+      .footer .date { font-size:9.5px; color:#999; }
+      .section, .card-grid, table.budget-table, .header { break-inside:avoid; page-break-inside:avoid; }
+    </style>
+    </head>
+    <body>
+      <div class="header">
+        <div class="tag">Project Charter</div>
+        <h1>${project.name}</h1>
+        <div class="sub">${project.client_name || ''}${project.client_name && project.location ? ' &middot; ' : ''}${project.location || ''}</div>
+      </div>
+      <div class="accent-bar"></div>
+      <div class="body">
 
-      <h3 style="font-size:12pt;">Objectives / Purpose</h3>
-      ${nl2p(d.objectives)}
+        <div class="section">
+          <div class="section-title">Objectives / Purpose</div>
+          ${nl2p(d.objectives)}
+        </div>
 
-      <h3 style="font-size:12pt;">Scope</h3>
-      <p><strong>In scope:</strong></p>
-      ${nl2p(d.scope_in)}
-      <p><strong>Out of scope:</strong></p>
-      ${nl2p(d.scope_out)}
+        <div class="section two-col">
+          <div>
+            <div class="section-title">Scope — In</div>
+            ${nl2p(d.scope_in)}
+          </div>
+          <div>
+            <div class="section-title">Scope — Out</div>
+            ${nl2p(d.scope_out)}
+          </div>
+        </div>
 
-      <h3 style="font-size:12pt;">Key Stakeholders</h3>
-      ${nl2p(d.stakeholders)}
+        <div class="section">
+          <div class="section-title">Timeline</div>
+          <p>Start: ${project.start_date ? fmtPeriod(project.start_date) : '—'} &nbsp;&nbsp;&rarr;&nbsp;&nbsp; End: ${project.end_date ? fmtPeriod(project.end_date) : '—'}</p>
+        </div>
 
-      <h3 style="font-size:12pt;">Timeline</h3>
-      <p>Start: ${project.start_date ? fmtPeriod(project.start_date) : '—'} &nbsp;&nbsp; End: ${project.end_date ? fmtPeriod(project.end_date) : '—'}</p>
+        ${budgetItems.length > 0 ? `
+        <div class="section">
+          <div class="section-title">Budget — Budgeted vs Actual</div>
+          <table class="budget-table">
+            <thead><tr><th>Category</th><th class="num">Budgeted</th><th class="num">Actual</th><th class="num">Variance</th></tr></thead>
+            <tbody>
+              ${budgetRowsHtml}
+              <tr class="total"><td>Subtotal — COGS</td><td class="num">${fmtMoney(cogsTotal)}</td><td class="num">${fmtMoney(totalActual)}</td><td class="num ${totalVariance>=0?'pos':'neg'}">${fmtMoney(totalVariance)}</td></tr>
+            </tbody>
+          </table>
+        </div>
 
-      <h3 style="font-size:12pt;">Budget Summary</h3>
-      <table style="border-collapse:collapse; width:100%;">
-        <tr><td style="padding:4pt; border-bottom:1pt solid #eee;">Contract Value (excl. SST)</td><td style="padding:4pt; border-bottom:1pt solid #eee; text-align:right;">${fmtMoney(contractValue)}</td></tr>
-        <tr><td style="padding:4pt; border-bottom:1pt solid #eee;">SST (${project.sst_percent||0}%)</td><td style="padding:4pt; border-bottom:1pt solid #eee; text-align:right;">${fmtMoney(sstAmount)}</td></tr>
-        <tr><td style="padding:4pt; border-bottom:1pt solid #eee;"><strong>Total Contract Value</strong></td><td style="padding:4pt; border-bottom:1pt solid #eee; text-align:right;"><strong>${fmtMoney(totalContractValue)}</strong></td></tr>
-        <tr><td style="padding:4pt; border-bottom:1pt solid #eee;">Deposit Required (${project.deposit_percent||0}%)</td><td style="padding:4pt; border-bottom:1pt solid #eee; text-align:right;">${fmtMoney(depositAmount)}</td></tr>
-        <tr><td style="padding:4pt; border-bottom:1pt solid #eee;">Total Budgeted Cost (COGS)</td><td style="padding:4pt; border-bottom:1pt solid #eee; text-align:right;">${fmtMoney(cogsTotal)}</td></tr>
-      </table>
+        <div class="section">
+          <div class="section-title">Pricing Summary</div>
+          <div class="card-grid">
+            <div class="stat-card"><div class="label">Contract Value</div><div class="value">${fmtMoney(contractValue)}</div></div>
+            <div class="stat-card"><div class="label">SST (${project.sst_percent||0}%)</div><div class="value">${fmtMoney(sstAmount)}</div></div>
+            <div class="stat-card"><div class="label">Total Contract Value</div><div class="value">${fmtMoney(totalContractValue)}</div></div>
+            <div class="stat-card"><div class="label">Deposit (${project.deposit_percent||0}%)</div><div class="value">${fmtMoney(depositAmount)}</div></div>
+          </div>
+        </div>
 
-      <h3 style="font-size:12pt;">Success Criteria</h3>
-      ${nl2p(d.success_criteria)}
+        <div class="section">
+          <div class="section-title">Profitability</div>
+          <div class="card-grid c3">
+            <div class="stat-card"><div class="label">Gross Profit</div><div class="value" style="color:${grossProfit>=0?'#2F8F86':'#B23B3B'};">${fmtMoney(grossProfit)}</div></div>
+            <div class="stat-card"><div class="label">Net Profit</div><div class="value" style="color:${netProfit>=0?'#2F8F86':'#B23B3B'};">${fmtMoney(netProfit)}</div></div>
+            <div class="stat-card"><div class="label">Net Margin</div><div class="value" style="color:${netMargin>=0?'#2F8F86':'#B23B3B'};">${netMargin.toFixed(1)}%</div></div>
+          </div>
+        </div>
 
-      <h3 style="font-size:12pt;">Risks & Assumptions</h3>
-      ${nl2p(d.risks)}
+        <div class="section">
+          <div class="section-title">Project Performance Analysis — based on ${pc}% complete</div>
+          <div class="card-grid">
+            <div class="stat-card"><div class="label">EAC (Est. at Completion)</div><div class="value">${fmtMoney(eac)}</div></div>
+            <div class="stat-card"><div class="label">ETC (Est. to Complete)</div><div class="value">${fmtMoney(etc)}</div></div>
+            <div class="stat-card"><div class="label">VAC (Variance at Completion)</div><div class="value" style="color:${vac>=0?'#2F8F86':'#B23B3B'};">${fmtMoney(vac)}</div></div>
+            <div class="stat-card"><div class="label">CPI (Cost Performance)</div><div class="value" style="color:${cpi===null?'#101A2C':(cpi>=1?'#2F8F86':'#B23B3B')};">${cpi===null ? '—' : cpi.toFixed(2)}</div></div>
+          </div>
+        </div>
+        ` : ''}
 
-      <h3 style="font-size:12pt;">Approval</h3>
-      <p>Approved by: ${d.approved_by || '—'} &nbsp;&nbsp; Date: ${d.approved_date ? fmtPeriod(d.approved_date) : '—'}</p>
+        <div class="section">
+          <div class="section-title">Key Stakeholders</div>
+          ${nl2p(d.stakeholders)}
+        </div>
 
-      <p style="color:#999; font-size:9pt; margin-top:24pt;">Generated by PROFIT — Project Financial Tracking on ${new Date().toLocaleDateString()}</p>
+        <div class="section">
+          <div class="section-title">Success Criteria</div>
+          ${nl2p(d.success_criteria)}
+        </div>
+
+        <div class="section">
+          <div class="section-title">Risks &amp; Assumptions</div>
+          ${nl2p(d.risks)}
+        </div>
+
+        <div class="section">
+          <div class="section-title">Approval</div>
+          <p>Approved by: ${d.approved_by || '—'} &nbsp;&nbsp;&nbsp; Date: ${d.approved_date ? fmtPeriod(d.approved_date) : '—'}</p>
+        </div>
+
+        <div class="footer">
+          <div class="brand">§ PROFIT</div>
+          <div class="date">Generated ${new Date().toLocaleDateString()}</div>
+        </div>
+      </div>
     </body></html>
   `;
 }

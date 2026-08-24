@@ -1061,6 +1061,13 @@ function deleteLineItem(id, label){
 }
 
 // ===== Rendering =====
+const STANDARD_SUBCATEGORIES = [
+  'Direct Manpower', 'Subcontractor / Professional Services', 'Equipment & Hardware',
+  'Travel & Accomodation', 'Permit & Regulatory', 'Software & Licences',
+  'Project Allowance', 'Logistics & Shipping', 'Venue & Facilities',
+  'Vehicle Cost', 'Materials & Consumables', 'Other Direct Project Costs',
+];
+
 function esc(str){
   if(str === null || str === undefined) return '';
   return String(str)
@@ -3338,7 +3345,7 @@ function UploadModal(){
 function BudgetItemModal(){
   const d = state.budgetItemModalData;
   const isEdit = !!d.id;
-  const existingCategories = [...new Set(state.lineItems.map(i => i.category))].sort();
+  const existingCategories = [...new Set([...STANDARD_SUBCATEGORIES, ...state.lineItems.map(i => i.category)])].sort();
   const overlay = el(`
     <div class="modal-overlay">
       <div class="modal">
@@ -3487,9 +3494,10 @@ function QuickFillModal(){
   const existingCategories = [...new Set(
     state.lineItems.map(i => i.category)
   )].sort();
-  const existingSubcategories = [...new Set(
-    state.lineItems.filter(i => i.subcategory).map(i => i.subcategory)
-  )].sort();
+  const existingSubcategories = [...new Set([
+    ...STANDARD_SUBCATEGORIES,
+    ...state.lineItems.filter(i => i.subcategory).map(i => i.subcategory)
+  ])].sort();
 
   const year = new Date().getFullYear();
   const months = Array.from({length:12}, (_, m) => `${year}-${String(m+1).padStart(2,'0')}`);
@@ -3642,9 +3650,10 @@ function LineItemModal(){
   const existingCategories = [...new Set(
     state.lineItems.map(i => i.category)
   )].sort();
-  const existingSubcategories = [...new Set(
-    state.lineItems.filter(i => i.subcategory).map(i => i.subcategory)
-  )].sort();
+  const existingSubcategories = [...new Set([
+    ...STANDARD_SUBCATEGORIES,
+    ...state.lineItems.filter(i => i.subcategory).map(i => i.subcategory)
+  ])].sort();
   const overlay = el(`
     <div class="modal-overlay">
       <div class="modal">

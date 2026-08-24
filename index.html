@@ -846,7 +846,7 @@ function closeQuickFillModal(){
 
 function openQuickEdit(type){
   const combos = [...new Set(
-    state.lineItems.filter(i => i.statement_type === type).map(i => `${esc(i.category)}|||${i.subcategory || ''}`)
+    state.lineItems.map(i => `${i.category}|||${i.subcategory || ''}`)
   )];
   const first = combos[0] ? combos[0].split('|||') : ['', ''];
   state.quickEditType = type;
@@ -3376,7 +3376,7 @@ function BudgetItemModal(){
 function QuickEditModal(){
   const type = state.quickEditType;
   const combos = [...new Set(
-    state.lineItems.filter(i => i.statement_type === type).map(i => `${esc(i.category)}|||${i.subcategory || ''}`)
+    state.lineItems.map(i => `${i.category}|||${i.subcategory || ''}`)
   )].sort();
 
   if(combos.length === 0){
@@ -3384,7 +3384,7 @@ function QuickEditModal(){
       <div class="modal-overlay">
         <div class="modal">
           <h3 class="modal-title">Quick edit months</h3>
-          <div style="font-size:13px;color:var(--grey);">No existing ${type==='pnl'?'PnL':'Cashflow'} entries yet — Quick Edit works on data that's already there. Use "+ Add line item" or "+ Quick fill months" to create some first.</div>
+          <div style="font-size:13px;color:var(--grey);">No existing line items yet — Quick Edit works on data that's already there. Use "+ Add line item" or "+ Quick fill months" to create some first.</div>
           <div class="modal-actions"><button type="button" class="btn pill" id="qe-close">Close</button></div>
         </div>
       </div>
@@ -3394,7 +3394,7 @@ function QuickEditModal(){
   }
 
   const comboValue = `${state.quickEditCategory}|||${state.quickEditSubcategory}`;
-  const comboLabel = (c) => { const [cat, sub] = c.split('|||'); return sub ? `${esc(cat)} — ${esc(sub)}` : cat; };
+  const comboLabel = (c) => { const [cat, sub] = c.split('|||'); return sub ? `${cat} — ${sub}` : cat; };
 
   const years = [...new Set(state.lineItems.filter(i => i.period).map(i => i.period.slice(0,4)))].sort();
   if(!years.includes(String(state.quickEditYear))) years.push(String(state.quickEditYear));

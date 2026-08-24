@@ -1376,10 +1376,14 @@ function MainPanel(){
     if(state.activeTab === 'summary') main.appendChild(SummaryView(filteredItems, project));
     if(state.activeTab === 'pnl'){
       const pnlItems = filteredItems.filter(i=>i.statement_type==='pnl');
+      const pnlItemsForSummary = state.viewMode === 'grid' ? state.lineItems.filter(i=>i.statement_type==='pnl') : pnlItems;
+      main.appendChild(PnLSummaryCards(pnlItemsForSummary));
       main.appendChild(state.viewMode === 'grid' ? MatrixGridView(state.lineItems.filter(i=>i.statement_type==='pnl'), 'pnl') : StatementTable(pnlItems, 'pnl'));
     }
     if(state.activeTab === 'cashflow'){
       const cfItems = filteredItems.filter(i=>i.statement_type==='cashflow');
+      const cfItemsForSummary = state.viewMode === 'grid' ? state.lineItems.filter(i=>i.statement_type==='cashflow') : cfItems;
+      main.appendChild(CashflowSummaryCards(cfItemsForSummary));
       main.appendChild(state.viewMode === 'grid' ? MatrixGridView(state.lineItems.filter(i=>i.statement_type==='cashflow'), 'cashflow', project) : StatementTable(cfItems, 'cashflow'));
     }
     if(state.activeTab === 'forecast') main.appendChild(ForecastView(project));
@@ -1773,6 +1777,34 @@ function MatrixGridView(items, type, project){
   `);
   wrap.appendChild(card);
   return wrap;
+}
+
+function PnLSummaryCards(items){
+  const revenue = items.filter(i => Number(i.amount) >= 0).reduce((s,i) => s + Number(i.amount), 0);
+  const expenses = items.filter(i => Number(i.amount) < 0).reduce((s,i) => s + Math.abs(Number(i.amount)), 0);
+  const profit = revenue - expenses;
+  const margin = revenue > 0 ? (profit / revenue * 100) : 0;
+  return el(`
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-label">Total Revenue</div><div class="stat-value pos">${fmtMoney(revenue)}</div></div>
+      <div class="stat-card"><div class="stat-label">Total Expenses</div><div class="stat-value neg">${fmtMoney(expenses)}</div></div>
+      <div class="stat-card"><div class="stat-label">Profit</div><div class="stat-value ${profit>=0?'pos':'neg'}">${fmtMoney(profit)}</div></div>
+      <div class="stat-card"><div class="stat-label">Profit Margin</div><div class="stat-value ${margin>=0?'pos':'neg'}">${margin.toFixed(1)}%</div></div>
+    </div>
+  `);
+}
+
+function CashflowSummaryCards(items){
+  const cashIn = items.filter(i => Number(i.amount) >= 0).reduce((s,i) => s + Number(i.amount), 0);
+  const cashOut = items.filter(i => Number(i.amount) < 0).reduce((s,i) => s + Math.abs(Number(i.amount)), 0);
+  const net = cashIn - cashOut;
+  return el(`
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-label">Total Cash In</div><div class="stat-value pos">${fmtMoney(cashIn)}</div></div>
+      <div class="stat-card"><div class="stat-label">Total Cash Out</div><div class="stat-value neg">${fmtMoney(cashOut)}</div></div>
+      <div class="stat-card"><div class="stat-label">Net Cashflow</div><div class="stat-value ${net>=0?'pos':'neg'}">${fmtMoney(net)}</div></div>
+    </div>
+  `);
 }
 
 function StatementTable(items, type){

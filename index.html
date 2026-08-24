@@ -1437,27 +1437,18 @@ function SummaryView(items, project){
     `));
 
     if(monthRows.length > 0){
-      const monthCard = el(`<div class="card"><div class="card-title">Monthly Cash Flow</div></div>`);
-
-      // Visual bar chart — balance trajectory at a glance, color-coded pos/neg
-      const maxAbs = Math.max(...monthRows.map(r => Math.abs(r.balance)), 1);
-      const chartH = 100;
-      const chart = el(`
-        <div style="display:flex; align-items:flex-end; gap:10px; height:${chartH}px; padding:10px 4px 4px; margin-bottom:14px; border-bottom:1px solid var(--line);">
-          ${monthRows.map(r => {
-            const h = Math.max(3, Math.round((Math.abs(r.balance) / maxAbs) * (chartH - 20)));
-            const color = r.balance >= 0 ? 'var(--teal)' : 'var(--rust)';
-            return `
-              <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%;">
-                <div style="font-size:9.5px; color:var(--grey); margin-bottom:3px; white-space:nowrap;">${fmtMoney(r.balance)}</div>
-                <div style="width:60%; height:${h}px; background:${color}; border-radius:3px 3px 0 0;"></div>
-                <div style="font-size:9px; color:var(--grey); margin-top:4px;">${fmtPeriod(r.month+'-01').split(' ')[0]}</div>
-              </div>
-            `;
-          }).join('')}
+      const monthCard = el(`
+        <div class="card">
+          <div class="card-title">Cash balance trend <span style="font-weight:400;font-size:12px;color:var(--grey);">— cumulative balance, month by month</span></div>
+          ${chartCanvas(190)}
         </div>
       `);
-      monthCard.appendChild(chart);
+      wrap.appendChild(monthCard);
+      mountLineChart(
+        monthCard.querySelector('canvas'), 'summary-balance-'+project.id,
+        monthRows.map(r => fmtPeriod(r.month+'-01')), monthRows.map(r => r.balance),
+        endingBalance >= 0 ? '#6FCF97' : '#E2807A'
+      );
 
       const table = el(`
         <table class="ledger">
@@ -1468,7 +1459,6 @@ function SummaryView(items, project){
         </table>
       `);
       monthCard.appendChild(table);
-      wrap.appendChild(monthCard);
     }
 
     // ===== Auto-generated Key Takeaways =====
@@ -1488,8 +1478,8 @@ function SummaryView(items, project){
   if(items.length === 0){
     wrap.appendChild(el(`<div class="empty-state"><div class="big">No data yet</div><div>Upload a CSV/Excel file to get started.</div></div>`));
   } else {
-    const c1 = CategoryBreakdown(items.filter(i=>i.statement_type==='pnl'), 'PnL — by category');
-    const c2 = CategoryBreakdown(items.filter(i=>i.statement_type==='cashflow'), 'Cashflow — by category');
+    const c1 = CategoryBreakdown(items.filter(i=>i.statement_type==='pnl'), 'PnL — by category', 'summary-pnl-cat-'+project.id);
+    const c2 = CategoryBreakdown(items.filter(i=>i.statement_type==='cashflow'), 'Cashflow — by category', 'summary-cf-cat-'+project.id);
     wrap.appendChild(c1);
     wrap.appendChild(c2);
   }
@@ -1534,7 +1524,7 @@ function generateKeyTakeaways({ project, totalCashIn, totalCashOut, netPosition,
   return takeaways;
 }
 
-function CategoryBreakdown(items, title){
+function CategoryBreakdown(items, title, chartId){
   const catGroups = {};
   items.forEach(i => {
     if(!catGroups[i.category]) catGroups[i.category] = {};
@@ -1549,6 +1539,16 @@ function CategoryBreakdown(items, title){
   if(catTotals.length === 0){
     card.appendChild(el(`<div style="color:var(--grey);font-size:13px;">No data.</div>`));
     return card;
+  }
+
+  if(chartId && catTotals.length > 1){
+    const chartWrap = el(chartCanvas(Math.max(90, catTotals.length * 32)));
+    card.appendChild(chartWrap);
+    mountBarChart(
+      chartWrap.querySelector('canvas'), chartId,
+      catTotals.map(([cat]) => cat), catTotals.map(([,amt]) => amt),
+      catTotals.map(([,amt]) => amt >= 0 ? '#6FCF97' : '#E2807A'), true
+    );
   }
 
   let rowsHtml = '';
@@ -1880,6 +1880,15 @@ function BudgetView(project){
   if(budgetItems.length === 0){
     budgetCard.appendChild(el(`<div class="empty-state" style="padding:30px 0;"><div class="big">No budget lines yet</div><div>${isAdmin ? 'Click "+ Add budget line" to set your estimated cost per category.' : 'Ask an admin to set up the project budget.'}</div></div>`));
   } else {
+    const chartWrap = el(chartCanvas(Math.max(160, budgetItems.length * 30)));
+    budgetCard.appendChild(chartWrap);
+    mountGroupedBarChart(chartWrap.querySelector('canvas'), 'budget-vs-actual-'+project.id,
+      budgetItems.map(b => b.category), [
+        { label: 'Budget', data: budgetItems.map(b => Number(b.budget_amount)), backgroundColor: '#5266EB', borderRadius: 4 },
+        { label: 'Actual', data: budgetItems.map(b => actualFor(b.category)), backgroundColor: '#6FCF97', borderRadius: 4 },
+      ]
+    );
+
     const rowsHtml = budgetItems.map(b => {
       const actual = actualFor(b.category);
       const variance = Number(b.budget_amount) - actual;
@@ -2073,31 +2082,18 @@ function PerformanceView(project){
     </div>
   `));
 
-  // ===== Simple bar chart: Budget vs Cost vs Final Forecast =====
-  const maxVal = Math.max(cogsTotal, totalActual, eac, 1);
-  const bars = [
-    { label: 'Original Budget', value: cogsTotal, color: 'var(--teal)' },
-    { label: 'Cost to Date', value: totalActual, color: 'var(--gold)' },
-    { label: 'EAC (Forecast)', value: eac, color: eac > cogsTotal ? 'var(--rust)' : 'var(--teal)' },
-  ];
-  const chartHeight = 160;
-  wrap.appendChild(el(`
+  // ===== Bar chart: Budget vs Cost vs Final Forecast =====
+  const barLabels = ['Original Budget', 'Cost to Date', 'EAC (Forecast)'];
+  const barValues = [cogsTotal, totalActual, eac];
+  const barColors = ['#6FCF97', '#5266EB', eac > cogsTotal ? '#E2807A' : '#6FCF97'];
+  const perfChartCard = el(`
     <div class="card">
       <div class="card-title">Budget vs Cost vs Final Forecast</div>
-      <div style="display:flex; align-items:flex-end; gap:24px; height:${chartHeight}px; padding-top:20px;">
-        ${bars.map(b => {
-          const h = Math.max(4, Math.round((b.value / maxVal) * chartHeight));
-          return `
-            <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%;">
-              <div style="font-size:12px; font-weight:600; margin-bottom:4px;">${fmtMoney(b.value)}</div>
-              <div style="width:60%; height:${h}px; background:${b.color}; border-radius:4px 4px 0 0;"></div>
-              <div style="font-size:11px; color:var(--grey); margin-top:6px; text-align:center;">${b.label}</div>
-            </div>
-          `;
-        }).join('')}
-      </div>
+      ${chartCanvas(190)}
     </div>
-  `));
+  `);
+  wrap.appendChild(perfChartCard);
+  mountBarChart(perfChartCard.querySelector('canvas'), 'perf-budget-cost-eac-'+project.id, barLabels, barValues, barColors, false);
 
   return wrap;
 }

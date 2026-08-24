@@ -1694,13 +1694,24 @@ function MatrixGridView(items, type, project){
   return wrap;
 }
 
+async function updateLineItemField(id, fields){
+  const { error } = await sb.from('line_items').update(fields).eq('id', id);
+  if(error){ alert(error.message); return false; }
+  await loadProjectData(state.selectedProjectId);
+  render();
+  return true;
+}
+
 function StatementTable(items, type){
   const wrap = el(`<div></div>`);
 
   const addBar = el(`
-    <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;">
-      <button class="btn pill small secondary" id="quick-fill-btn">+ Quick fill months</button>
-      <button class="btn pill small" id="add-line-item-btn">+ Add line item</button>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <div style="font-size:12px;color:var(--grey);">Click any cell below to edit it directly — saves automatically.</div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn pill small secondary" id="quick-fill-btn">+ Quick fill months</button>
+        <button class="btn pill small" id="add-line-item-btn">+ Add line item</button>
+      </div>
     </div>
   `);
   addBar.querySelector('#add-line-item-btn').addEventListener('click', () => openAddLineItem(type));
@@ -1711,60 +1722,80 @@ function StatementTable(items, type){
     wrap.appendChild(el(`<div class="empty-state"><div class="big">No ${type==='pnl'?'PnL':'Cashflow'} data</div><div>Click "+ Add line item" or upload a file to get started.</div></div>`));
     return wrap;
   }
-  const groups = {};
-  items.forEach(i => {
-    const key = i.category;
-    if(!groups[key]) groups[key] = [];
-    groups[key].push(i);
+
+  const existingCategories = [...new Set(state.lineItems.map(i => i.category))].sort();
+  const existingSubcategories = [...new Set(state.lineItems.filter(i => i.subcategory).map(i => i.subcategory))].sort();
+  const datalistId = 'edit-cat-list-' + type;
+  const subDatalistId = 'edit-subcat-list-' + type;
+
+  const sortedItems = [...items].sort((a, b) => {
+    if(!a.period && !b.period) return 0;
+    if(!a.period) return 1;
+    if(!b.period) return -1;
+    return a.period.localeCompare(b.period);
   });
-  const groupEntries = Object.entries(groups).map(([cat, rows]) => {
-    const sortedRows = [...rows].sort((a, b) => {
-      if(!a.period && !b.period) return 0;
-      if(!a.period) return 1;
-      if(!b.period) return -1;
-      return a.period.localeCompare(b.period);
-    });
-    return [cat, rows.reduce((s,i)=>s+Number(i.amount),0), sortedRows];
-  });
-  sortCategoriesLogically(groupEntries, 1);
   const grandTotal = items.reduce((s,i)=>s+Number(i.amount),0);
 
   let rowsHtml = '';
-  let stripeMonthKey = null;
-  let stripeOn = false;
-  groupEntries.forEach(([cat, subtotal, rows]) => {
-    rowsHtml += `<tr class="group-row"><td class="cat" colspan="2">${cat}</td><td></td><td class="num">${fmtMoney(subtotal)}</td><td></td></tr>`;
-    rows.forEach(r => {
-      const monthKey = r.period || '__none__';
-      if(monthKey !== stripeMonthKey){ stripeOn = !stripeOn; stripeMonthKey = monthKey; }
-      rowsHtml += `<tr ${stripeOn ? 'style="background:var(--stripe);"' : ''}>
-        <td></td>
-        <td class="cat">${r.subcategory || '—'} ${r.status==='forecast' ? '<span class="pill forecast">Forecast</span>' : ''}</td>
-        <td style="font-size:12px;color:var(--grey);">${fmtPeriod(r.period)}</td>
-        <td class="num ${r.amount>=0?'amt-pos':'amt-neg'}">${fmtMoney(r.amount)}</td>
-        <td style="white-space:nowrap;">
-          <button class="btn pill small secondary row-edit" data-id="${r.id}" style="padding:3px 8px;font-size:11px;">Edit</button>
-          <button class="btn pill small secondary row-delete" data-id="${r.id}" style="padding:3px 8px;font-size:11px;">Delete</button>
-        </td>
-      </tr>`;
-    });
+  sortedItems.forEach(r => {
+    rowsHtml += `<tr data-row-id="${r.id}">
+      <td><input type="text" class="grid-cell-input edit-category" list="${datalistId}" value="${r.category || ''}" style="text-align:left;font-weight:500;"></td>
+      <td><input type="text" class="grid-cell-input edit-subcategory" list="${subDatalistId}" value="${r.subcategory || ''}" style="text-align:left;"></td>
+      <td><input type="month" class="grid-cell-input edit-month" value="${r.period ? r.period.slice(0,7) : ''}" style="text-align:left;"></td>
+      <td><input type="number" step="0.01" class="grid-cell-input edit-amount ${r.amount>=0?'amt-pos':'amt-neg'}" value="${r.amount}" style="font-weight:600;"></td>
+      <td>
+        <select class="grid-cell-input edit-status" style="text-align:left;">
+          <option value="actual" ${r.status!=='forecast'?'selected':''}>Actual</option>
+          <option value="forecast" ${r.status==='forecast'?'selected':''}>Forecast</option>
+        </select>
+      </td>
+      <td style="white-space:nowrap;">
+        <button class="btn pill small secondary row-delete" data-id="${r.id}" style="padding:3px 8px;font-size:11px;">Delete</button>
+      </td>
+    </tr>`;
   });
-  rowsHtml += `<tr class="total-row"><td class="cat" colspan="2">Grand total</td><td></td><td class="num ${grandTotal>=0?'amt-pos':'amt-neg'}">${fmtMoney(grandTotal)}</td><td></td></tr>`;
 
   const card = el(`
     <div class="card">
+      <datalist id="${datalistId}">${existingCategories.map(c => `<option value="${c}">`).join('')}</datalist>
+      <datalist id="${subDatalistId}">${existingSubcategories.map(s => `<option value="${s}">`).join('')}</datalist>
       <table class="ledger">
-        <thead><tr><th style="width:24px;"></th><th>Subcategory</th><th>Month</th><th class="num">Amount</th><th style="width:120px;"></th></tr></thead>
+        <thead><tr><th>Category</th><th>Subcategory</th><th>Month</th><th class="num">Amount</th><th>Status</th><th style="width:80px;"></th></tr></thead>
         <tbody>${rowsHtml}</tbody>
+        <tfoot><tr class="total-row"><td class="cat" colspan="3">Grand total</td><td class="num ${grandTotal>=0?'amt-pos':'amt-neg'}">${fmtMoney(grandTotal)}</td><td></td><td></td></tr></tfoot>
       </table>
     </div>
   `);
-  card.querySelectorAll('.row-edit').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const item = state.lineItems.find(i => i.id === btn.dataset.id);
-      if(item) openEditLineItem(item);
+
+  card.querySelectorAll('tr[data-row-id]').forEach(row => {
+    const id = row.dataset.rowId;
+    const catInput = row.querySelector('.edit-category');
+    const subInput = row.querySelector('.edit-subcategory');
+    const monthInput = row.querySelector('.edit-month');
+    const amountInput = row.querySelector('.edit-amount');
+    const statusSelect = row.querySelector('.edit-status');
+
+    catInput.addEventListener('change', () => {
+      if(!catInput.value.trim()){ alert('Category cannot be empty.'); catInput.value = state.lineItems.find(i=>i.id===id)?.category || ''; return; }
+      updateLineItemField(id, { category: catInput.value.trim() });
+    });
+    subInput.addEventListener('change', () => {
+      updateLineItemField(id, { subcategory: subInput.value.trim() || null });
+    });
+    monthInput.addEventListener('change', () => {
+      if(!monthInput.value){ alert('Month is required — PROFIT needs a month on every entry.'); monthInput.value = state.lineItems.find(i=>i.id===id)?.period?.slice(0,7) || ''; return; }
+      updateLineItemField(id, { period: `${monthInput.value}-01` });
+    });
+    amountInput.addEventListener('change', () => {
+      const val = parseFloat(amountInput.value);
+      if(isNaN(val)){ alert('Amount must be a number.'); amountInput.value = state.lineItems.find(i=>i.id===id)?.amount || 0; return; }
+      updateLineItemField(id, { amount: val });
+    });
+    statusSelect.addEventListener('change', () => {
+      updateLineItemField(id, { status: statusSelect.value });
     });
   });
+
   card.querySelectorAll('.row-delete').forEach(btn => {
     btn.addEventListener('click', () => {
       const item = state.lineItems.find(i => i.id === btn.dataset.id);

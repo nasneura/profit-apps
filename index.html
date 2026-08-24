@@ -10,7 +10,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/html-docx-js@0.3.1/dist/html-docx.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   :root{
@@ -822,7 +821,7 @@ function closeUploadModal(){
 function deleteUpload(uploadId, fileName){
   askConfirm({
     title: 'Delete upload?',
-    message: `This will permanently delete <strong>${fileName || 'this upload'}</strong> and all line items imported from it. This cannot be undone.`,
+    message: `This will permanently delete <strong>${esc(fileName || 'this upload')}</strong> and all line items imported from it. This cannot be undone.`,
     confirmLabel: 'Delete upload',
     danger: true,
     onConfirm: async () => {
@@ -847,7 +846,7 @@ function closeQuickFillModal(){
 
 function openQuickEdit(type){
   const combos = [...new Set(
-    state.lineItems.filter(i => i.statement_type === type).map(i => `${i.category}|||${i.subcategory || ''}`)
+    state.lineItems.filter(i => i.statement_type === type).map(i => `${esc(i.category)}|||${i.subcategory || ''}`)
   )];
   const first = combos[0] ? combos[0].split('|||') : ['', ''];
   state.quickEditType = type;
@@ -972,7 +971,7 @@ async function saveBudgetItem(id, category, amount){
 function deleteBudgetItem(id, category){
   askConfirm({
     title: 'Delete budget item?',
-    message: `This will permanently delete the budget line for <strong>${category}</strong>.`,
+    message: `This will permanently delete the budget line for <strong>${esc(category)}</strong>.`,
     confirmLabel: 'Delete item',
     danger: true,
     onConfirm: async () => {
@@ -1062,6 +1061,16 @@ function deleteLineItem(id, label){
 }
 
 // ===== Rendering =====
+function esc(str){
+  if(str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function el(html){
   const t = document.createElement('template');
   t.innerHTML = html.trim();
@@ -1263,14 +1272,14 @@ function Sidebar(){
         <div>
           <div class="nav-section-label">Projects</div>
           <div class="project-list">
-            ${state.projects.map(p => `<div class="project-item ${state.selectedProjectId===p.id?'active':''}" data-id="${p.id}">${p.name}</div>`).join('')}
+            ${state.projects.map(p => `<div class="project-item ${state.selectedProjectId===p.id?'active':''}" data-id="${p.id}">${esc(p.name)}</div>`).join('')}
           </div>
           ${isAdmin ? `<button class="btn-new-project" id="new-project-btn">+ New project</button>` : ''}
         </div>
       </div>
       <div class="sidebar-footer">
         <div class="user-row">
-          <span>${state.profile ? (state.profile.full_name || state.profile.email) : ''}</span>
+          <span>${state.profile ? esc(state.profile.full_name || state.profile.email) : ''}</span>
           <span class="role-badge ${isAdmin?'':'member'}">${state.profile ? state.profile.role : ''}</span>
         </div>
         <button class="signout" id="signout-btn">Sign out</button>
@@ -1318,8 +1327,8 @@ function MainPanel(){
   const header = el(`
     <div class="main-header">
       <div>
-        <h1 class="page-title">${isConsolidated ? consolidatedTitles[state.consolidatedTab][0] : project.name}</h1>
-        <div class="page-sub">${isConsolidated ? consolidatedTitles[state.consolidatedTab][1] : (project.description || 'Project PnL & Cashflow')}</div>
+        <h1 class="page-title">${isConsolidated ? consolidatedTitles[state.consolidatedTab][0] : esc(project.name)}</h1>
+        <div class="page-sub">${isConsolidated ? consolidatedTitles[state.consolidatedTab][1] : esc(project.description || 'Project PnL & Cashflow')}</div>
       </div>
       <div style="display:flex; gap:8px;">
         ${(!isConsolidated && isAdmin) ? `<button class="btn secondary pill" id="edit-project-btn">Edit Project</button>` : ''}
@@ -1607,7 +1616,7 @@ function generateKeyTakeaways({ project, totalCashIn, totalCashOut, netPosition,
   const sortedOutflows = Object.entries(outflowByCategory).sort((a,b) => b[1]-a[1]);
   if(sortedOutflows.length > 0){
     const [topCat, topAmt] = sortedOutflows[0];
-    takeaways.push(`The largest single outflow category is <strong>${topCat}</strong> (~${fmtMoney(topAmt)}).`);
+    takeaways.push(`The largest single outflow category is <strong>${esc(topCat)}</strong> (~${fmtMoney(topAmt)}).`);
   }
 
   takeaways.push(`Ending cash balance: ${fmtMoney(endingBalance)}.`);
@@ -1657,10 +1666,10 @@ function CategoryBreakdown(items, title, chartId){
   let rowsHtml = '';
   catTotals.forEach(([cat, catAmt, subs]) => {
     const subEntries = Object.entries(subs);
-    rowsHtml += `<tr class="group-row"><td class="cat">${cat}</td><td class="num">${fmtMoney(catAmt)}</td></tr>`;
+    rowsHtml += `<tr class="group-row"><td class="cat">${esc(cat)}</td><td class="num">${fmtMoney(catAmt)}</td></tr>`;
     if(subEntries.length > 1 || subEntries[0][0] !== '—'){
       subEntries.sort((a,b) => b[1]-a[1]).forEach(([sub, amt]) => {
-        rowsHtml += `<tr><td class="cat" style="padding-left:22px;font-size:12.5px;color:var(--grey);">${sub}</td><td class="num ${amt>=0?'amt-pos':'amt-neg'}" style="font-size:12.5px;">${fmtMoney(amt)}</td></tr>`;
+        rowsHtml += `<tr><td class="cat" style="padding-left:22px;font-size:12.5px;color:var(--grey);">${esc(sub)}</td><td class="num ${amt>=0?'amt-pos':'amt-neg'}" style="font-size:12.5px;">${fmtMoney(amt)}</td></tr>`;
       });
     }
   });
@@ -1740,7 +1749,7 @@ function MatrixGridView(items, type, project){
       if(catHasForecast) grandForecastByCol[c] = true;
       catCells += `<td class="num${catHasForecast?' fc-cell':''}">${sum !== 0 ? fmtMoney(sum) : '—'}</td>`;
     });
-    bodyHtml += `<tr class="group-row"><td class="cat">${cat}</td>${catCells}<td class="num">${fmtMoney(catTotal)}</td></tr>`;
+    bodyHtml += `<tr class="group-row"><td class="cat">${esc(cat)}</td>${catCells}<td class="num">${fmtMoney(catTotal)}</td></tr>`;
 
     const subEntries = Object.entries(subs)
       .map(([sub, cellsByMonth]) => [sub, Object.values(cellsByMonth).reduce((a,c)=>a+c.sum,0), cellsByMonth])
@@ -1756,7 +1765,7 @@ function MatrixGridView(items, type, project){
           const fcClass = cell && cell.hasForecast ? ' fc-cell' : '';
           cells += `<td class="num ${sum>=0?'amt-pos':'amt-neg'}${fcClass}" style="font-size:12.5px;">${sum !== 0 ? fmtMoney(sum) : '—'}</td>`;
         });
-        bodyHtml += `<tr><td class="cat" style="padding-left:22px;font-size:12.5px;color:var(--grey);">${sub}</td>${cells}<td class="num" style="font-size:12.5px;">${fmtMoney(subTotal)}</td></tr>`;
+        bodyHtml += `<tr><td class="cat" style="padding-left:22px;font-size:12.5px;color:var(--grey);">${esc(sub)}</td>${cells}<td class="num" style="font-size:12.5px;">${fmtMoney(subTotal)}</td></tr>`;
       });
     }
     grandTotal += catTotal;
@@ -1861,13 +1870,13 @@ function StatementTable(items, type){
   let stripeMonthKey = null;
   let stripeOn = false;
   groupEntries.forEach(([cat, subtotal, rows]) => {
-    rowsHtml += `<tr class="group-row"><td class="cat" colspan="2">${cat}</td><td></td><td class="num">${fmtMoney(subtotal)}</td><td></td></tr>`;
+    rowsHtml += `<tr class="group-row"><td class="cat" colspan="2">${esc(cat)}</td><td></td><td class="num">${fmtMoney(subtotal)}</td><td></td></tr>`;
     rows.forEach(r => {
       const monthKey = r.period || '__none__';
       if(monthKey !== stripeMonthKey){ stripeOn = !stripeOn; stripeMonthKey = monthKey; }
       rowsHtml += `<tr ${stripeOn ? 'style="background:var(--stripe);"' : ''}>
         <td></td>
-        <td class="cat">${r.subcategory || '—'} ${r.status==='forecast' ? '<span class="pill forecast">Forecast</span>' : ''}</td>
+        <td class="cat">${esc(r.subcategory || '—')} ${r.status==='forecast' ? '<span class="pill forecast">Forecast</span>' : ''}</td>
         <td style="font-size:12px;color:var(--grey);">${fmtPeriod(r.period)}</td>
         <td class="num ${r.amount>=0?'amt-pos':'amt-neg'}">${fmtMoney(r.amount)}</td>
         <td style="white-space:nowrap;">
@@ -1896,7 +1905,7 @@ function StatementTable(items, type){
   card.querySelectorAll('.row-delete').forEach(btn => {
     btn.addEventListener('click', () => {
       const item = state.lineItems.find(i => i.id === btn.dataset.id);
-      const label = item ? `${item.category}${item.subcategory ? ' — ' + item.subcategory : ''} (${fmtMoney(item.amount)})` : null;
+      const label = item ? `${esc(item.category)}${item.subcategory ? ' — ' + esc(item.subcategory) : ''} (${fmtMoney(item.amount)})` : null;
       deleteLineItem(btn.dataset.id, label);
     });
   });
@@ -1915,9 +1924,9 @@ function computeAlerts(project, lineItems, budgetItems){
     if(budget <= 0) return;
     const pct = (actual / budget) * 100;
     if(pct > 100){
-      alerts.push({ severity: 'critical', title: `${b.category} is over budget`, detail: `${fmtMoney(actual)} spent against ${fmtMoney(budget)} budgeted (${pct.toFixed(0)}%).` });
+      alerts.push({ severity: 'critical', title: `${esc(b.category)} is over budget`, detail: `${fmtMoney(actual)} spent against ${fmtMoney(budget)} budgeted (${pct.toFixed(0)}%).` });
     } else if(pct >= 85){
-      alerts.push({ severity: 'warning', title: `${b.category} is near budget limit`, detail: `${fmtMoney(actual)} spent against ${fmtMoney(budget)} budgeted (${pct.toFixed(0)}%).` });
+      alerts.push({ severity: 'warning', title: `${esc(b.category)} is near budget limit`, detail: `${fmtMoney(actual)} spent against ${fmtMoney(budget)} budgeted (${pct.toFixed(0)}%).` });
     }
   });
 
@@ -1995,8 +2004,8 @@ function BudgetView(project){
     <div class="card">
       <div class="card-title">Project Info</div>
       <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; font-size:13px;">
-        <div><div style="color:var(--grey);font-size:11px;text-transform:uppercase;margin-bottom:3px;">Client</div><div>${project.client_name || '—'}</div></div>
-        <div><div style="color:var(--grey);font-size:11px;text-transform:uppercase;margin-bottom:3px;">Location</div><div>${project.location || '—'}</div></div>
+        <div><div style="color:var(--grey);font-size:11px;text-transform:uppercase;margin-bottom:3px;">Client</div><div>${esc(project.client_name || '—')}</div></div>
+        <div><div style="color:var(--grey);font-size:11px;text-transform:uppercase;margin-bottom:3px;">Location</div><div>${esc(project.location || '—')}</div></div>
         <div><div style="color:var(--grey);font-size:11px;text-transform:uppercase;margin-bottom:3px;">Contract Value (excl. SST)</div><div>${fmtMoney(project.contract_value || 0)}</div></div>
       </div>
     </div>
@@ -2037,7 +2046,7 @@ function BudgetView(project){
       const barPct = Math.min(100, usagePct);
       const barColor = usagePct > 100 ? 'var(--rust)' : usagePct >= 85 ? 'var(--gold)' : 'var(--teal)';
       return `<tr>
-        <td class="cat">${b.category}</td>
+        <td class="cat">${esc(b.category)}</td>
         <td class="num">${fmtMoney(b.budget_amount)}</td>
         <td class="num" style="color:var(--grey);">${fmtMoney(actual)}</td>
         <td style="min-width:120px;">
@@ -2269,8 +2278,8 @@ function CharterView(project){
     <div class="field">
       <label>${label}</label>
       ${isTextarea
-        ? `<textarea name="${key}" rows="3" ${!isAdmin?'disabled':''}>${d[key]}</textarea>`
-        : `<input type="${type}" name="${key}" value="${d[key]}" ${!isAdmin?'disabled':''}>`}
+        ? `<textarea name="${key}" rows="3" ${!isAdmin?'disabled':''}>${esc(d[key])}</textarea>`
+        : `<input type="${type}" name="${key}" value="${esc(d[key])}" ${!isAdmin?'disabled':''}>`}
     </div>
   `;
 
@@ -2354,17 +2363,17 @@ function buildCharterHTML(project, forPrint){
   const cpi = pc > 0 && totalActual > 0 ? ev / totalActual : null;
 
   const d = state.charterFormData || {};
-  const nl2p = (text) => (text || '—').split('\n').filter(l=>l.trim()).map(l => `<p>${l}</p>`).join('') || '<p>—</p>';
+  const nl2p = (text) => (text || '—').split('\n').filter(l=>l.trim()).map(l => `<p>${esc(l)}</p>`).join('') || '<p>—</p>';
   const printStyle = forPrint ? `<style>@media print{ @page{ margin:0.5in; } body{ -webkit-print-color-adjust:exact; } }</style>` : '';
 
   const budgetRowsHtml = budgetItems.map(b => {
     const actual = actualFor(b.category);
     const variance = Number(b.budget_amount) - actual;
-    return `<tr><td>${b.category}</td><td class="num">${fmtMoney(b.budget_amount)}</td><td class="num">${fmtMoney(actual)}</td><td class="num ${variance>=0?'pos':'neg'}">${fmtMoney(variance)}</td></tr>`;
+    return `<tr><td>${esc(b.category)}</td><td class="num">${fmtMoney(b.budget_amount)}</td><td class="num">${fmtMoney(actual)}</td><td class="num ${variance>=0?'pos':'neg'}">${fmtMoney(variance)}</td></tr>`;
   }).join('');
 
   return `
-    <!DOCTYPE html><html><head><meta charset="utf-8"><title>${project.name} — Project Charter</title>
+    <!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(project.name)} — Project Charter</title>
     <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&display=swap" rel="stylesheet">
     ${printStyle}
     <style>
@@ -2400,8 +2409,8 @@ function buildCharterHTML(project, forPrint){
     <body>
       <div class="header">
         <div class="tag">Project Charter</div>
-        <h1>${project.name}</h1>
-        <div class="sub">${project.client_name || ''}${project.client_name && project.location ? ' &middot; ' : ''}${project.location || ''}</div>
+        <h1>${esc(project.name)}</h1>
+        <div class="sub">${esc(project.client_name || '')}${project.client_name && project.location ? ' &middot; ' : ''}${esc(project.location || '')}</div>
       </div>
       <div class="accent-bar"></div>
       <div class="body">
@@ -2486,7 +2495,7 @@ function buildCharterHTML(project, forPrint){
 
         <div class="section">
           <div class="section-title">Approval</div>
-          <p>Approved by: ${d.approved_by || '—'} &nbsp;&nbsp;&nbsp; Date: ${d.approved_date ? fmtPeriod(d.approved_date) : '—'}</p>
+          <p>Approved by: ${esc(d.approved_by || '—')} &nbsp;&nbsp;&nbsp; Date: ${d.approved_date ? fmtPeriod(d.approved_date) : '—'}</p>
         </div>
 
         <div class="footer">
@@ -2496,19 +2505,6 @@ function buildCharterHTML(project, forPrint){
       </div>
     </body></html>
   `;
-}
-
-function downloadProjectCharterWord(project){
-  const html = buildCharterHTML(project, false);
-  const blob = htmlDocx.asBlob(html, { margins: { top: 720, right: 720, bottom: 720, left: 720 } });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${project.name.replace(/[^a-z0-9]+/gi,'_')}_Project_Charter.doc`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
 }
 
 function downloadProjectCharterPDF(project){
@@ -2827,9 +2823,9 @@ function UploadsView(){
       <div class="upload-row">
         <div>
           <span class="pill ${u.statement_type}">${u.statement_type === 'pnl' ? 'PnL' : 'Cashflow'}</span>
-          <strong style="margin-left:8px;">${u.file_name}</strong>
+          <strong style="margin-left:8px;">${esc(u.file_name)}</strong>
           ${u.period_label ? `<span class="upload-meta"> · ${u.period_label}</span>` : ''}
-          <div class="upload-meta">by ${u.profiles?.full_name || u.profiles?.email || 'someone'} · ${new Date(u.uploaded_at).toLocaleDateString('en-MY')}</div>
+          <div class="upload-meta">by ${esc(u.profiles?.full_name || u.profiles?.email || 'someone')} · ${new Date(u.uploaded_at).toLocaleDateString('en-MY')}</div>
         </div>
         <button class="btn pill small secondary" data-id="${u.id}">Delete</button>
       </div>
@@ -3036,7 +3032,7 @@ function ConsolidatedAnalysisView(){
         <div style="border-left:4px solid ${color}; background:${bg}; border-radius:6px; padding:12px 14px;">
           <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px; flex-wrap:wrap;">
             <span style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:${color};">${a.severity}</span>
-            <span style="font-size:12px; font-weight:600; color:var(--grey);">${a.projectName}</span>
+            <span style="font-size:12px; font-weight:600; color:var(--grey);">${esc(a.projectName)}</span>
             <span style="font-size:14px; font-weight:600;">${a.title}</span>
           </div>
           <div style="font-size:13px; color:var(--grey);">${a.detail}</div>
@@ -3058,8 +3054,8 @@ function NewProjectModal(){
         <h3 class="modal-title">New project</h3>
         ${state.draftRestoredBanner ? `<div class="info-msg">We restored your unsaved changes from before the page reloaded.</div>` : ''}
         <form id="np-form">
-          <div class="field"><label>Project name</label><input type="text" name="name" value="${nd.name}" required></div>
-          <div class="field"><label>Description (optional)</label><textarea name="description" rows="2">${nd.description}</textarea></div>
+          <div class="field"><label>Project name</label><input type="text" name="name" value="${esc(nd.name)}" required></div>
+          <div class="field"><label>Description (optional)</label><textarea name="description" rows="2">${esc(nd.description)}</textarea></div>
           <div class="field"><label>Opening cash balance (RM)</label><input type="number" step="0.01" name="opening_balance" value="${nd.opening_balance}" placeholder="e.g. 50000"></div>
           <div class="modal-actions">
             <button type="button" class="btn pill secondary" id="np-cancel">Cancel</button>
@@ -3103,11 +3099,11 @@ function EditProjectModal(){
         <h3 class="modal-title">Edit project</h3>
         ${state.draftRestoredBanner ? `<div class="info-msg">We restored your unsaved changes from before the page reloaded.</div>` : ''}
         <form id="ep-form">
-          <div class="field"><label>Project name</label><input type="text" name="name" value="${d.name}" required></div>
-          <div class="field"><label>Description (optional)</label><textarea name="description" rows="2">${d.description}</textarea></div>
+          <div class="field"><label>Project name</label><input type="text" name="name" value="${esc(d.name)}" required></div>
+          <div class="field"><label>Description (optional)</label><textarea name="description" rows="2">${esc(d.description)}</textarea></div>
           <div class="field-row">
-            <div class="field"><label>Client (optional)</label><input type="text" name="client_name" value="${d.client_name}"></div>
-            <div class="field"><label>Location (optional)</label><input type="text" name="location" value="${d.location}"></div>
+            <div class="field"><label>Client (optional)</label><input type="text" name="client_name" value="${esc(d.client_name)}"></div>
+            <div class="field"><label>Location (optional)</label><input type="text" name="location" value="${esc(d.location)}"></div>
           </div>
           <div class="field"><label>Opening cash balance (RM)</label><input type="number" step="0.01" name="opening_balance" value="${d.opening_balance}"></div>
 
@@ -3176,7 +3172,7 @@ function EditProjectModal(){
     state.showEditProjectModal = false;
     askConfirm({
       title: 'Save project changes?',
-      message: `Confirm changes to <strong>${fields.name}</strong>.`,
+      message: `Confirm changes to <strong>${esc(fields.name)}</strong>.`,
       confirmLabel: 'Save changes',
       danger: false,
       onConfirm: () => updateProject(d.id, fields)
@@ -3352,9 +3348,9 @@ function BudgetItemModal(){
             <label>Category (required)</label>
             <select id="bi-category-quickpick" style="margin-bottom:6px;">
               <option value="">— Quick pick existing category —</option>
-              ${existingCategories.map(c => `<option value="${c}">${c}</option>`).join('')}
+              ${existingCategories.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}
             </select>
-            <input type="text" name="category" id="bi-category-input" value="${d.category}" placeholder="e.g. Equipment & Hardware" required>
+            <input type="text" name="category" id="bi-category-input" value="${esc(d.category)}" placeholder="e.g. Equipment & Hardware" required>
           </div>
           <div class="field"><label>Budget amount (RM)</label><input type="number" step="0.01" name="budget_amount" value="${d.budget_amount}" placeholder="e.g. 81193.20" required></div>
           <div class="modal-actions">
@@ -3380,7 +3376,7 @@ function BudgetItemModal(){
 function QuickEditModal(){
   const type = state.quickEditType;
   const combos = [...new Set(
-    state.lineItems.filter(i => i.statement_type === type).map(i => `${i.category}|||${i.subcategory || ''}`)
+    state.lineItems.filter(i => i.statement_type === type).map(i => `${esc(i.category)}|||${i.subcategory || ''}`)
   )].sort();
 
   if(combos.length === 0){
@@ -3398,7 +3394,7 @@ function QuickEditModal(){
   }
 
   const comboValue = `${state.quickEditCategory}|||${state.quickEditSubcategory}`;
-  const comboLabel = (c) => { const [cat, sub] = c.split('|||'); return sub ? `${cat} — ${sub}` : cat; };
+  const comboLabel = (c) => { const [cat, sub] = c.split('|||'); return sub ? `${esc(cat)} — ${esc(sub)}` : cat; };
 
   const years = [...new Set(state.lineItems.filter(i => i.period).map(i => i.period.slice(0,4)))].sort();
   if(!years.includes(String(state.quickEditYear))) years.push(String(state.quickEditYear));
@@ -3420,7 +3416,7 @@ function QuickEditModal(){
         <div class="field">
           <label>Category — Subcategory</label>
           <select id="qe-combo">
-            ${combos.map(c => `<option value="${c}" ${c===comboValue?'selected':''}>${comboLabel(c)}</option>`).join('')}
+            ${combos.map(c => `<option value="${esc(c)}" ${c===comboValue?'selected':''}>${esc(comboLabel(c))}</option>`).join('')}
           </select>
         </div>
         <div class="field">
@@ -3510,7 +3506,7 @@ function QuickFillModal(){
           <label>Category (required)</label>
           <select id="qf-category-quickpick" style="margin-bottom:6px;">
             <option value="">— Quick pick existing category —</option>
-            ${existingCategories.map(c => `<option value="${c}">${c}</option>`).join('')}
+            ${existingCategories.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}
           </select>
           <input type="text" id="qf-category-input" placeholder="Or type a new category name" value="${draft ? draft.category || '' : ''}" required>
         </div>
@@ -3519,7 +3515,7 @@ function QuickFillModal(){
           <label>Subcategory (optional)</label>
           <select id="qf-subcategory-quickpick" style="margin-bottom:6px;">
             <option value="">— Quick pick existing subcategory —</option>
-            ${existingSubcategories.map(s => `<option value="${s}">${s}</option>`).join('')}
+            ${existingSubcategories.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('')}
           </select>
           <input type="text" id="qf-subcategory-input" placeholder="Or type a new subcategory name" value="${draft ? draft.subcategory || '' : ''}">
         </div>
@@ -3605,7 +3601,7 @@ function QuickFillModal(){
 
     askConfirm({
       title: 'Create entries?',
-      message: `This will create <strong>${items.length}</strong> line item(s) for <strong>${category}</strong>.`,
+      message: `This will create <strong>${items.length}</strong> line item(s) for <strong>${esc(category)}</strong>.`,
       confirmLabel: 'Create',
       danger: false,
       onConfirm: () => submitQuickFill(items)
@@ -3659,17 +3655,17 @@ function LineItemModal(){
             <label>Category (required)</label>
             <select id="category-quickpick" style="margin-bottom:6px;">
               <option value="">— Quick pick existing category —</option>
-              ${existingCategories.map(c => `<option value="${c}">${c}</option>`).join('')}
+              ${existingCategories.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}
             </select>
-            <input type="text" name="category" id="category-input" value="${d.category}" placeholder="Or type a new category name" required>
+            <input type="text" name="category" id="category-input" value="${esc(d.category)}" placeholder="Or type a new category name" required>
           </div>
           <div class="field">
             <label>Subcategory (optional)</label>
             <select id="subcategory-quickpick" style="margin-bottom:6px;">
               <option value="">— Quick pick existing subcategory —</option>
-              ${existingSubcategories.map(s => `<option value="${s}">${s}</option>`).join('')}
+              ${existingSubcategories.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('')}
             </select>
-            <input type="text" name="subcategory" id="subcategory-input" value="${d.subcategory}" placeholder="Or type a new subcategory name">
+            <input type="text" name="subcategory" id="subcategory-input" value="${esc(d.subcategory)}" placeholder="Or type a new subcategory name">
           </div>
           <div class="field-row">
             <div class="field"><label>Amount (RM) — negative for outflow/expense</label><input type="number" step="0.01" name="amount" value="${d.amount}" placeholder="e.g. -4500 or 15000" required></div>
@@ -3744,7 +3740,7 @@ function LineItemModal(){
       state.showLineItemModal = false;
       askConfirm({
         title: 'Save changes?',
-        message: `Confirm changes to <strong>${state.lineItemModalData.category}</strong> (${fmtMoney(parseFloat(state.lineItemModalData.amount) || 0)}).`,
+        message: `Confirm changes to <strong>${esc(state.lineItemModalData.category)}</strong> (${fmtMoney(parseFloat(state.lineItemModalData.amount) || 0)}).`,
         confirmLabel: 'Save changes',
         danger: false,
         onConfirm: () => saveLineItem()

@@ -259,6 +259,11 @@ let state = {
   uploadExcludeKeywords: 'subtotal, balance, total',
   uploadMapping: { category: '', subcategory: '', amount: '', period: '' },
   charterFormData: null,
+  showQuickEditModal: false,
+  quickEditType: 'cashflow',
+  quickEditCategory: '',
+  quickEditSubcategory: '',
+  quickEditYear: new Date().getFullYear(),
   showLineItemModal: false,
   lineItemModalMode: 'add',
   lineItemModalType: 'pnl',
@@ -834,6 +839,81 @@ function closeQuickFillModal(){
   render();
 }
 
+function openQuickEdit(type){
+  const combos = [...new Set(
+    state.lineItems.filter(i => i.statement_type === type).map(i => `${i.category}|||${i.subcategory || ''}`)
+  )];
+  const first = combos[0] ? combos[0].split('|||') : ['', ''];
+  state.quickEditType = type;
+  state.quickEditCategory = first[0];
+  state.quickEditSubcategory = first[1];
+  state.quickEditYear = new Date().getFullYear();
+  state.showQuickEditModal = true;
+  render();
+}
+
+function closeQuickEditModal(){
+  state.showQuickEditModal = false;
+  render();
+}
+
+async function saveQuickEdit(monthValues){
+  const { quickEditType, quickEditCategory, quickEditSubcategory } = state;
+  const existing = state.lineItems.filter(i =>
+    i.statement_type === quickEditType &&
+    i.category === quickEditCategory &&
+    (i.subcategory || '') === quickEditSubcategory
+  );
+  const byMonth = {};
+  existing.forEach(i => { if(i.period) byMonth[i.period.slice(0,7)] = i; });
+
+  const toInsert = [];
+  const toUpdate = [];
+  const toDelete = [];
+
+  Object.entries(monthValues).forEach(([month, { amount, status }]) => {
+    const existingRow = byMonth[month];
+    if(amount === null){
+      if(existingRow) toDelete.push(existingRow.id);
+      return;
+    }
+    if(existingRow){
+      toUpdate.push({ id: existingRow.id, amount, status });
+    } else {
+      toInsert.push({
+        project_id: state.selectedProjectId,
+        statement_type: quickEditType,
+        category: quickEditCategory,
+        subcategory: quickEditSubcategory || null,
+        amount, period: `${month}-01`, status,
+        created_by: state.profile.id,
+      });
+    }
+  });
+
+  if(toInsert.length === 0 && toUpdate.length === 0 && toDelete.length === 0){
+    closeQuickEditModal();
+    return;
+  }
+
+  if(toInsert.length > 0){
+    const { error } = await sb.from('line_items').insert(toInsert);
+    if(error){ alert(error.message); return; }
+  }
+  for(const u of toUpdate){
+    const { error } = await sb.from('line_items').update({ amount: u.amount, status: u.status }).eq('id', u.id);
+    if(error){ alert(error.message); return; }
+  }
+  if(toDelete.length > 0){
+    const { error } = await sb.from('line_items').delete().in('id', toDelete);
+    if(error){ alert(error.message); return; }
+  }
+
+  closeQuickEditModal();
+  await loadProjectData(state.selectedProjectId);
+  render();
+}
+
 async function submitQuickFill(items){
   if(items.length === 0){
     alert('Please enter an amount for at least one month.');
@@ -1126,6 +1206,7 @@ function AppShell(){
   if(state.showUploadModal) wrap.appendChild(UploadModal());
   if(state.showLineItemModal) wrap.appendChild(LineItemModal());
   if(state.showQuickFillModal) wrap.appendChild(QuickFillModal());
+  if(state.showQuickEditModal) wrap.appendChild(QuickEditModal());
   if(state.showBudgetItemModal) wrap.appendChild(BudgetItemModal());
   if(state.confirmDialog.show) wrap.appendChild(ConfirmDialogModal());
   return wrap;
@@ -1709,6 +1790,7 @@ function StatementTable(items, type){
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
       <div style="font-size:12px;color:var(--grey);">Click any cell below to edit it directly — saves automatically.</div>
       <div style="display:flex; gap:8px;">
+        <button class="btn pill small secondary" id="quick-edit-btn">Quick edit months</button>
         <button class="btn pill small secondary" id="quick-fill-btn">+ Quick fill months</button>
         <button class="btn pill small" id="add-line-item-btn">+ Add line item</button>
       </div>
@@ -1716,6 +1798,7 @@ function StatementTable(items, type){
   `);
   addBar.querySelector('#add-line-item-btn').addEventListener('click', () => openAddLineItem(type));
   addBar.querySelector('#quick-fill-btn').addEventListener('click', () => openQuickFill(type));
+  addBar.querySelector('#quick-edit-btn').addEventListener('click', () => openQuickEdit(type));
   wrap.appendChild(addBar);
 
   if(items.length === 0){
@@ -3277,6 +3360,113 @@ function BudgetItemModal(){
     const fd = new FormData(e.target);
     saveBudgetItem(d.id, fd.get('category'), fd.get('budget_amount'));
   });
+  return overlay;
+}
+
+function QuickEditModal(){
+  const type = state.quickEditType;
+  const combos = [...new Set(
+    state.lineItems.filter(i => i.statement_type === type).map(i => `${i.category}|||${i.subcategory || ''}`)
+  )].sort();
+
+  if(combos.length === 0){
+    const overlay = el(`
+      <div class="modal-overlay">
+        <div class="modal">
+          <h3 class="modal-title">Quick edit months</h3>
+          <div style="font-size:13px;color:var(--grey);">No existing ${type==='pnl'?'PnL':'Cashflow'} entries yet — Quick Edit works on data that's already there. Use "+ Add line item" or "+ Quick fill months" to create some first.</div>
+          <div class="modal-actions"><button type="button" class="btn pill" id="qe-close">Close</button></div>
+        </div>
+      </div>
+    `);
+    overlay.querySelector('#qe-close').addEventListener('click', closeQuickEditModal);
+    return overlay;
+  }
+
+  const comboValue = `${state.quickEditCategory}|||${state.quickEditSubcategory}`;
+  const comboLabel = (c) => { const [cat, sub] = c.split('|||'); return sub ? `${cat} — ${sub}` : cat; };
+
+  const years = [...new Set(state.lineItems.filter(i => i.period).map(i => i.period.slice(0,4)))].sort();
+  if(!years.includes(String(state.quickEditYear))) years.push(String(state.quickEditYear));
+  years.sort();
+
+  const months = Array.from({length:12}, (_, m) => `${state.quickEditYear}-${String(m+1).padStart(2,'0')}`);
+  const existingForCombo = state.lineItems.filter(i =>
+    i.statement_type === type && i.category === state.quickEditCategory && (i.subcategory || '') === state.quickEditSubcategory
+  );
+  const byMonth = {};
+  existingForCombo.forEach(i => { if(i.period) byMonth[i.period.slice(0,7)] = i; });
+
+  const overlay = el(`
+    <div class="modal-overlay">
+      <div class="modal" style="width:460px;">
+        <h3 class="modal-title">Quick edit months — ${type === 'pnl' ? 'PnL' : 'Cashflow'}</h3>
+        <div class="page-sub" style="margin-bottom:14px;">Pick a category, then edit any month below — existing values are pre-filled. Clear a value to delete that month's entry.</div>
+
+        <div class="field">
+          <label>Category — Subcategory</label>
+          <select id="qe-combo">
+            ${combos.map(c => `<option value="${c}" ${c===comboValue?'selected':''}>${comboLabel(c)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label>Year</label>
+          <select id="qe-year">
+            ${years.map(y => `<option value="${y}" ${Number(y)===state.quickEditYear?'selected':''}>${y}</option>`).join('')}
+          </select>
+        </div>
+
+        <div style="max-height:340px; overflow-y:auto; border:1px solid var(--line); border-radius:6px; padding:10px 12px; margin-top:6px;">
+          ${months.map(m => {
+            const row = byMonth[m];
+            return `
+            <div style="display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid var(--paper-dim);">
+              <label style="font-size:13px; font-weight:500; color:var(--text); text-transform:none; letter-spacing:normal; width:80px; flex-shrink:0;">${fmtPeriod(m+'-01')}</label>
+              <input type="number" step="0.01" class="qe-month-input" data-month="${m}" style="flex:1;" placeholder="—" value="${row ? row.amount : ''}">
+              <select class="qe-month-status" data-month="${m}" style="width:100px; flex-shrink:0;">
+                <option value="actual" ${!row || row.status!=='forecast' ? 'selected' : ''}>Actual</option>
+                <option value="forecast" ${row && row.status==='forecast' ? 'selected' : ''}>Forecast</option>
+              </select>
+            </div>
+          `;}).join('')}
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn pill secondary" id="qe-cancel">Cancel</button>
+          <button type="button" class="btn pill" id="qe-save">Save changes</button>
+        </div>
+      </div>
+    </div>
+  `);
+
+  overlay.querySelector('#qe-combo').addEventListener('change', (e) => {
+    const [cat, sub] = e.target.value.split('|||');
+    state.quickEditCategory = cat;
+    state.quickEditSubcategory = sub;
+    render();
+  });
+  overlay.querySelector('#qe-year').addEventListener('change', (e) => {
+    state.quickEditYear = Number(e.target.value);
+    render();
+  });
+  overlay.querySelector('#qe-cancel').addEventListener('click', closeQuickEditModal);
+  overlay.querySelector('#qe-save').addEventListener('click', () => {
+    const monthValues = {};
+    overlay.querySelectorAll('.qe-month-input').forEach(inp => {
+      const month = inp.dataset.month;
+      const statusEl = overlay.querySelector(`.qe-month-status[data-month="${month}"]`);
+      const v = inp.value.trim();
+      if(v === ''){
+        monthValues[month] = { amount: null, status: statusEl.value };
+      } else {
+        const amt = parseFloat(v);
+        if(isNaN(amt)) return;
+        monthValues[month] = { amount: amt, status: statusEl.value };
+      }
+    });
+    saveQuickEdit(monthValues);
+  });
+
   return overlay;
 }
 

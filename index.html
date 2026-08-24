@@ -3228,11 +3228,12 @@ function BudgetItemModal(){
 function QuickFillModal(){
   const type = state.quickFillType;
   const draft = state.quickFillDraft;
+  // Shared across both PnL and Cashflow — see LineItemModal for why.
   const existingCategories = [...new Set(
-    state.lineItems.filter(i => i.statement_type === type).map(i => i.category)
+    state.lineItems.map(i => i.category)
   )].sort();
   const existingSubcategories = [...new Set(
-    state.lineItems.filter(i => i.statement_type === type && i.subcategory).map(i => i.subcategory)
+    state.lineItems.filter(i => i.subcategory).map(i => i.subcategory)
   )].sort();
 
   const year = new Date().getFullYear();
@@ -3380,11 +3381,14 @@ function saveQuickFillDraft(overlay, type){
 function LineItemModal(){
   const isEdit = state.lineItemModalMode === 'edit';
   const d = state.lineItemModalData;
+  // Quick-pick options are shared across BOTH PnL and Cashflow (not filtered by statement type),
+  // so a subcategory used in Cash-Out also shows up when entering the matching Expenses item —
+  // keeping names consistent so Budget vs Actual tallies correctly either way.
   const existingCategories = [...new Set(
-    state.lineItems.filter(i => i.statement_type === state.lineItemModalType).map(i => i.category)
+    state.lineItems.map(i => i.category)
   )].sort();
   const existingSubcategories = [...new Set(
-    state.lineItems.filter(i => i.statement_type === state.lineItemModalType && i.subcategory).map(i => i.subcategory)
+    state.lineItems.filter(i => i.subcategory).map(i => i.subcategory)
   )].sort();
   const overlay = el(`
     <div class="modal-overlay">

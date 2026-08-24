@@ -160,7 +160,7 @@
   table.ledger td.cat{ font-family:'Lexend',sans-serif; font-weight:500; }
   table.ledger tr.group-row td{ background:var(--navy-light); font-weight:700; font-family:'Lexend',sans-serif; }
   table.ledger tr.group-row td.num{ font-family:'Lexend',sans-serif; font-variant-numeric:tabular-nums; font-weight:700; }
-  table.ledger tr.total-row td{ border-top:1px solid var(--line); border-bottom:none; font-weight:700; font-family:'Lexend',sans-serif; font-variant-numeric:tabular-nums; padding-top:14px; background:transparent; }
+  table.ledger tr.total-row td{ border-top:2px solid rgba(255,255,255,0.18); border-bottom:none; font-weight:700; font-family:'Lexend',sans-serif; font-variant-numeric:tabular-nums; padding-top:14px; background:transparent; }
   table.ledger tr.total-row td.cat{ font-family:'Lexend',sans-serif; }
   .amt-pos{ color:var(--teal); }
   .amt-neg{ color:var(--rust); }
@@ -170,6 +170,7 @@
   }
   .grid-cell-input:hover{ border-color:var(--line); }
   .grid-cell-input:focus{ border-color:var(--gold); background:var(--panel-alt); outline:none; }
+  .fc-cell{ opacity:0.5; }
 
   .empty-state{ text-align:center; padding:60px 20px; color:var(--grey); }
   .empty-state .big{ font-family:'Lexend',sans-serif; font-weight:700; font-size:20px; color:var(--text); margin-bottom:8px; }
@@ -1695,7 +1696,7 @@ function MatrixGridView(items, type, project){
   const hasUndated = items.some(i => !i.period);
   const columns = hasUndated ? [...months, '__undated__'] : [...months];
 
-  // catMap[cat][sub][colKey] = { sum, items: [{id, amount}] }
+  // catMap[cat][sub][colKey] = { sum, hasForecast }
   const catMap = {};
   items.forEach(i => {
     const cat = i.category;
@@ -1703,9 +1704,9 @@ function MatrixGridView(items, type, project){
     const colKey = i.period ? i.period.slice(0,7) : '__undated__';
     if(!catMap[cat]) catMap[cat] = {};
     if(!catMap[cat][sub]) catMap[cat][sub] = {};
-    if(!catMap[cat][sub][colKey]) catMap[cat][sub][colKey] = { sum: 0, items: [] };
+    if(!catMap[cat][sub][colKey]) catMap[cat][sub][colKey] = { sum: 0, hasForecast: false };
     catMap[cat][sub][colKey].sum += Number(i.amount);
-    catMap[cat][sub][colKey].items.push({ id: i.id, amount: Number(i.amount) });
+    if(i.status === 'forecast') catMap[cat][sub][colKey].hasForecast = true;
   });
 
   const catEntries = Object.entries(catMap).map(([cat, subs]) => {
@@ -1717,7 +1718,8 @@ function MatrixGridView(items, type, project){
   const headerCells = columns.map(c => `<th class="num">${c === '__undated__' ? 'No Date' : fmtPeriod(c+'-01')}</th>`).join('');
 
   const grandTotalsByCol = {};
-  columns.forEach(c => grandTotalsByCol[c] = 0);
+  const grandForecastByCol = {};
+  columns.forEach(c => { grandTotalsByCol[c] = 0; grandForecastByCol[c] = false; });
   let grandTotal = 0;
   let bodyHtml = '';
 
@@ -1725,9 +1727,13 @@ function MatrixGridView(items, type, project){
     let catCells = '';
     columns.forEach(c => {
       let sum = 0;
-      Object.values(subs).forEach(monthMap => { sum += (monthMap[c] ? monthMap[c].sum : 0); });
+      let catHasForecast = false;
+      Object.values(subs).forEach(monthMap => {
+        if(monthMap[c]){ sum += monthMap[c].sum; if(monthMap[c].hasForecast) catHasForecast = true; }
+      });
       grandTotalsByCol[c] += sum;
-      catCells += `<td class="num">${sum !== 0 ? fmtMoney(sum) : '—'}</td>`;
+      if(catHasForecast) grandForecastByCol[c] = true;
+      catCells += `<td class="num${catHasForecast?' fc-cell':''}">${sum !== 0 ? fmtMoney(sum) : '—'}</td>`;
     });
     bodyHtml += `<tr class="group-row"><td class="cat">${cat}</td>${catCells}<td class="num">${fmtMoney(catTotal)}</td></tr>`;
 
@@ -1742,7 +1748,8 @@ function MatrixGridView(items, type, project){
         columns.forEach(c => {
           const cell = cellsByMonth[c];
           const sum = cell ? cell.sum : 0;
-          cells += `<td class="num ${sum>=0?'amt-pos':'amt-neg'}" style="font-size:12.5px;">${sum !== 0 ? fmtMoney(sum) : '—'}</td>`;
+          const fcClass = cell && cell.hasForecast ? ' fc-cell' : '';
+          cells += `<td class="num ${sum>=0?'amt-pos':'amt-neg'}${fcClass}" style="font-size:12.5px;">${sum !== 0 ? fmtMoney(sum) : '—'}</td>`;
         });
         bodyHtml += `<tr><td class="cat" style="padding-left:22px;font-size:12.5px;color:var(--grey);">${sub}</td>${cells}<td class="num" style="font-size:12.5px;">${fmtMoney(subTotal)}</td></tr>`;
       });
@@ -1750,7 +1757,7 @@ function MatrixGridView(items, type, project){
     grandTotal += catTotal;
   });
 
-  const totalRowCells = columns.map(c => `<td class="num ${grandTotalsByCol[c]>=0?'amt-pos':'amt-neg'}">${fmtMoney(grandTotalsByCol[c])}</td>`).join('');
+  const totalRowCells = columns.map(c => `<td class="num ${grandTotalsByCol[c]>=0?'amt-pos':'amt-neg'}${grandForecastByCol[c]?' fc-cell':''}">${fmtMoney(grandTotalsByCol[c])}</td>`).join('');
   const totalRowLabel = type === 'cashflow' ? 'Net Cash Flow' : 'Grand total';
   bodyHtml += `<tr class="total-row"><td class="cat">${totalRowLabel}</td>${totalRowCells}<td class="num ${grandTotal>=0?'amt-pos':'amt-neg'}">${fmtMoney(grandTotal)}</td></tr>`;
 
@@ -1763,7 +1770,7 @@ function MatrixGridView(items, type, project){
       balanceByCol[m] = running;
     });
     if(hasUndated) balanceByCol['__undated__'] = running; // undated items carried forward, not time-anchored
-    const balanceCells = columns.map(c => `<td class="num ${balanceByCol[c]>=0?'amt-pos':'amt-neg'}" style="font-weight:700;">${fmtMoney(balanceByCol[c])}</td>`).join('');
+    const balanceCells = columns.map(c => `<td class="num ${balanceByCol[c]>=0?'amt-pos':'amt-neg'}${grandForecastByCol[c]?' fc-cell':''}" style="font-weight:700;">${fmtMoney(balanceByCol[c])}</td>`).join('');
     bodyHtml += `<tr class="total-row"><td class="cat">Cumulative Cash Balance</td>${balanceCells}<td class="num ${running>=0?'amt-pos':'amt-neg'}" style="font-weight:700;">${fmtMoney(running)}</td></tr>`;
   }
 
@@ -1773,6 +1780,7 @@ function MatrixGridView(items, type, project){
         <thead><tr><th>Category</th>${headerCells}<th class="num">Total</th></tr></thead>
         <tbody>${bodyHtml}</tbody>
       </table>
+      <div style="font-size:11px;color:var(--grey);margin-top:10px;">Dimmed cells contain Forecast entries (not yet Actual).</div>
     </div>
   `);
   wrap.appendChild(card);

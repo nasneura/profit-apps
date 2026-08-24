@@ -364,15 +364,6 @@ async function init(){
 }
 
 async function handleAuthStateChange(event, session){
-    // TOKEN_REFRESHED fires silently whenever the tab regains focus (Supabase refreshes
-    // the auth token). It doesn't represent an actual sign-in/out, so we update the
-    // session reference quietly without triggering a full re-render — otherwise any
-    // in-progress, unsaved form (e.g. Add/Edit line item) would get wiped out.
-    if(event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION'){
-      state.session = session;
-      return;
-    }
-
     if(event === 'PASSWORD_RECOVERY'){
       state.session = session;
       state.showResetPasswordModal = true;
@@ -381,6 +372,20 @@ async function handleAuthStateChange(event, session){
     }
 
     const wasLoggedOut = !state.session;
+    const isNowLoggedOut = !session;
+
+    // The person was logged in before AND is still logged in now — nothing meaningful
+    // changed (this covers TOKEN_REFRESHED, INITIAL_SESSION, and any other event Supabase
+    // fires when a browser tab regains focus and silently re-validates the session, e.g.
+    // SIGNED_IN firing again for an already-active session). Just refresh the session
+    // reference quietly, WITHOUT a full re-render — otherwise any in-progress, unsaved
+    // form (Add/Edit line item, Quick Edit months, etc.) gets wiped every time the person
+    // switches browser tabs and comes back.
+    if(!wasLoggedOut && !isNowLoggedOut){
+      state.session = session;
+      return;
+    }
+
     state.session = session;
     if(session){
       await loadProfileAndProjects();

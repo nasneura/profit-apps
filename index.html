@@ -475,6 +475,7 @@ async function selectProject(id){
   state.periodFilter = 'all';
   await loadProjectData(id);
   render();
+  document.querySelector('.main')?.scrollTo(0, 0);
 }
 
 // ===== Auth actions =====
@@ -1391,7 +1392,7 @@ function MainPanel(){
         </div>
       </div>
     `);
-    tabs.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => { state.activeTab = t.dataset.tab; render(); }));
+    tabs.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => { state.activeTab = t.dataset.tab; render(); document.querySelector('.main')?.scrollTo(0, 0); }));
     const periodSelect = tabs.querySelector('#period-filter');
     if(periodSelect) periodSelect.addEventListener('change', (e) => { state.periodFilter = e.target.value; render(); });
     const listBtn = tabs.querySelector('#view-list-btn');

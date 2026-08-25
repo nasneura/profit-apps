@@ -950,6 +950,15 @@ function closeBudgetItemModal(){
   render();
 }
 
+async function updateBudgetAmount(id, amount){
+  const val = parseFloat(amount);
+  if(isNaN(val)){ alert('Budget amount must be a number.'); await loadProjectData(state.selectedProjectId); render(); return; }
+  const { error } = await sb.from('budget_items').update({ budget_amount: val, updated_at: new Date().toISOString() }).eq('id', id);
+  if(error){ alert(error.message); return; }
+  await loadProjectData(state.selectedProjectId);
+  render();
+}
+
 async function saveBudgetItem(id, category, amount){
   if(!category || !category.trim() || isNaN(parseFloat(amount))){
     alert('Please fill in Category and Budget Amount (number).');
@@ -1470,7 +1479,7 @@ function SummaryView(items, project){
     if(project.client_name) detailItems.push(['Client', esc(project.client_name)]);
     if(project.location) detailItems.push(['Location', esc(project.location)]);
     if(project.start_date || project.end_date) detailItems.push(['Timeline', `${project.start_date ? fmtPeriod(project.start_date) : '—'} → ${project.end_date ? fmtPeriod(project.end_date) : '—'}`]);
-    if(project.contract_value > 0) detailItems.push(['Contract Value', fmtMoney(project.contract_value)]);
+    if(project.contract_value > 0) detailItems.push(['Contract Value (excl. SST)', fmtMoney(project.contract_value)]);
     if(project.percent_complete > 0) detailItems.push(['% Complete', `${project.percent_complete}%`]);
     wrap.appendChild(el(`
       <div class="card" style="padding:15px 18px; margin-bottom:18px;">
@@ -2029,18 +2038,6 @@ function BudgetView(project){
 
   wrap.appendChild(el(`<div style="font-size:12.5px;color:var(--grey);margin-bottom:12px;">Looking for EAC/ETC/VAC/CPI or schedule performance? See the <strong>Performance Analysis</strong> tab.</div>`));
 
-  // Meta card
-  wrap.appendChild(el(`
-    <div class="card">
-      <div class="card-title">Project Info</div>
-      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; font-size:13px;">
-        <div><div style="color:var(--grey);font-size:11px;text-transform:uppercase;margin-bottom:3px;">Client</div><div>${esc(project.client_name || '—')}</div></div>
-        <div><div style="color:var(--grey);font-size:11px;text-transform:uppercase;margin-bottom:3px;">Location</div><div>${esc(project.location || '—')}</div></div>
-        <div><div style="color:var(--grey);font-size:11px;text-transform:uppercase;margin-bottom:3px;">Contract Value (excl. SST)</div><div>${fmtMoney(project.contract_value || 0)}</div></div>
-      </div>
-    </div>
-  `));
-
   // Budget category table
   const budgetItems = state.budgetItems || [];
   const cogsTotal = budgetItems.reduce((s,b) => s + Number(b.budget_amount), 0);
@@ -2075,9 +2072,11 @@ function BudgetView(project){
       const usagePct = budgetAmt > 0 ? (actual / budgetAmt * 100) : 0;
       const barPct = Math.min(100, usagePct);
       const barColor = usagePct > 100 ? 'var(--rust)' : usagePct >= 85 ? 'var(--gold)' : 'var(--teal)';
-      return `<tr>
+      return `<tr data-budget-id="${b.id}">
         <td class="cat">${esc(b.category)}</td>
-        <td class="num">${fmtMoney(b.budget_amount)}</td>
+        <td class="num">${isAdmin
+          ? `<input type="number" step="0.01" class="grid-cell-input budget-amt-input" value="${b.budget_amount}" style="font-weight:600;">`
+          : fmtMoney(b.budget_amount)}</td>
         <td class="num" style="color:var(--grey);">${fmtMoney(actual)}</td>
         <td style="min-width:120px;">
           <div style="display:flex; align-items:center; gap:8px;">
@@ -2089,7 +2088,6 @@ function BudgetView(project){
         </td>
         <td class="num ${variance>=0?'amt-pos':'amt-neg'}">${fmtMoney(variance)}</td>
         ${isAdmin ? `<td style="white-space:nowrap;">
-          <button class="btn pill small secondary budget-edit" data-id="${b.id}" style="padding:3px 8px;font-size:11px;">Edit</button>
           <button class="btn pill small secondary budget-delete" data-id="${b.id}" style="padding:3px 8px;font-size:11px;">Delete</button>
         </td>` : ''}
       </tr>`;
@@ -2103,10 +2101,12 @@ function BudgetView(project){
         </tbody>
       </table>
     `);
-    table.querySelectorAll('.budget-edit').forEach(btn => btn.addEventListener('click', () => {
-      const item = budgetItems.find(b => b.id === btn.dataset.id);
-      if(item) openEditBudgetItem(item);
-    }));
+    table.querySelectorAll('.budget-amt-input').forEach(input => {
+      input.addEventListener('change', () => {
+        const id = input.closest('tr').dataset.budgetId;
+        updateBudgetAmount(id, input.value);
+      });
+    });
     table.querySelectorAll('.budget-delete').forEach(btn => btn.addEventListener('click', () => {
       const item = budgetItems.find(b => b.id === btn.dataset.id);
       if(item) deleteBudgetItem(item.id, item.category);
@@ -2189,27 +2189,27 @@ function PerformanceView(project){
   const cpi = pc > 0 && totalActual > 0 ? ev / totalActual : null;
 
   wrap.appendChild(el(`
-    <div class="card">
-      <div class="card-title">Cost Forecast <span style="font-weight:400;font-size:12px;color:var(--grey);">— based on ${pc}% complete</span></div>
-      <div class="stat-grid">
-        <div class="stat-card">
-          <div class="stat-label">EAC — Estimate at Completion</div>
-          <div class="stat-value">${fmtMoney(eac)}</div>
+    <div class="card" style="padding:16px 18px;">
+      <div class="card-title" style="font-size:12.5px; margin-bottom:10px;">Cost Forecast <span style="font-weight:400;font-size:11px;color:var(--grey);">— based on ${pc}% complete</span></div>
+      <div class="stat-grid" style="gap:10px; margin-bottom:8px;">
+        <div class="stat-card" style="padding:11px 13px;">
+          <div class="stat-label" style="font-size:9.5px; margin-bottom:4px;">EAC — Estimate at Completion</div>
+          <div class="stat-value" style="font-size:17px;">${fmtMoney(eac)}</div>
         </div>
-        <div class="stat-card">
-          <div class="stat-label">ETC — Estimate to Complete</div>
-          <div class="stat-value">${fmtMoney(etc)}</div>
+        <div class="stat-card" style="padding:11px 13px;">
+          <div class="stat-label" style="font-size:9.5px; margin-bottom:4px;">ETC — Estimate to Complete</div>
+          <div class="stat-value" style="font-size:17px;">${fmtMoney(etc)}</div>
         </div>
-        <div class="stat-card">
-          <div class="stat-label">VAC — Variance at Completion</div>
-          <div class="stat-value ${vac>=0?'pos':'neg'}">${fmtMoney(vac)}</div>
+        <div class="stat-card" style="padding:11px 13px;">
+          <div class="stat-label" style="font-size:9.5px; margin-bottom:4px;">VAC — Variance at Completion</div>
+          <div class="stat-value ${vac>=0?'pos':'neg'}" style="font-size:17px;">${fmtMoney(vac)}</div>
         </div>
-        <div class="stat-card">
-          <div class="stat-label">CPI — Cost Performance Index</div>
-          <div class="stat-value ${cpi===null?'':(cpi>=1?'pos':'neg')}">${cpi===null ? '—' : cpi.toFixed(2)}</div>
+        <div class="stat-card" style="padding:11px 13px;">
+          <div class="stat-label" style="font-size:9.5px; margin-bottom:4px;">CPI — Cost Performance Index</div>
+          <div class="stat-value ${cpi===null?'':(cpi>=1?'pos':'neg')}" style="font-size:17px;">${cpi===null ? '—' : cpi.toFixed(2)}</div>
         </div>
       </div>
-      <div style="font-size:12px;color:var(--grey);margin-top:4px;">
+      <div style="font-size:11px;color:var(--grey);">
         ${pc === 0 ? 'Set "% Complete" via Edit Project to activate forecasting — until then EAC defaults to Budget.' : `VAC ${vac>=0?'positive':'negative'} means the project is forecast to finish ${vac>=0?'under':'over'} budget. CPI ${cpi!==null && cpi>=1 ? '≥ 1.0 means cost-efficient so far.' : cpi!==null ? '< 1.0 means costs are running ahead of value earned.' : ''}`}
       </div>
     </div>
@@ -2233,33 +2233,81 @@ function PerformanceView(project){
   }
 
   wrap.appendChild(el(`
-    <div class="card">
-      <div class="card-title">Schedule Performance <span style="font-weight:400;font-size:12px;color:var(--grey);">(EVM — Earned Value Management)</span></div>
-      ${!hasSchedule ? `<div style="font-size:12.5px;color:var(--grey);">Set Start date and End date via Edit Project to activate PV, SV, and SPI.</div>` : `
-        <div class="stat-grid">
-          <div class="stat-card">
-            <div class="stat-label">PV — Planned Value</div>
-            <div class="stat-value">${fmtMoney(pv)}</div>
+    <div class="card" style="padding:16px 18px;">
+      <div class="card-title" style="font-size:12.5px; margin-bottom:10px;">Schedule Performance <span style="font-weight:400;font-size:11px;color:var(--grey);">(EVM — Earned Value Management)</span></div>
+      ${!hasSchedule ? `<div style="font-size:12px;color:var(--grey);">Set Start date and End date via Edit Project to activate PV, SV, and SPI.</div>` : `
+        <div class="stat-grid" style="gap:10px; margin-bottom:8px;">
+          <div class="stat-card" style="padding:11px 13px;">
+            <div class="stat-label" style="font-size:9.5px; margin-bottom:4px;">PV — Planned Value</div>
+            <div class="stat-value" style="font-size:17px;">${fmtMoney(pv)}</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-label">EV — Earned Value</div>
-            <div class="stat-value">${fmtMoney(ev)}</div>
+          <div class="stat-card" style="padding:11px 13px;">
+            <div class="stat-label" style="font-size:9.5px; margin-bottom:4px;">EV — Earned Value</div>
+            <div class="stat-value" style="font-size:17px;">${fmtMoney(ev)}</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-label">SV — Schedule Variance</div>
-            <div class="stat-value ${sv>=0?'pos':'neg'}">${fmtMoney(sv)}</div>
+          <div class="stat-card" style="padding:11px 13px;">
+            <div class="stat-label" style="font-size:9.5px; margin-bottom:4px;">SV — Schedule Variance</div>
+            <div class="stat-value ${sv>=0?'pos':'neg'}" style="font-size:17px;">${fmtMoney(sv)}</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-label">SPI — Schedule Performance Index</div>
-            <div class="stat-value ${spi===null?'':(spi>=1?'pos':'neg')}">${spi===null ? '—' : spi.toFixed(2)}</div>
+          <div class="stat-card" style="padding:11px 13px;">
+            <div class="stat-label" style="font-size:9.5px; margin-bottom:4px;">SPI — Schedule Performance Index</div>
+            <div class="stat-value ${spi===null?'':(spi>=1?'pos':'neg')}" style="font-size:17px;">${spi===null ? '—' : spi.toFixed(2)}</div>
           </div>
         </div>
-        <div style="font-size:12px;color:var(--grey);margin-top:4px;">
+        <div style="font-size:11px;color:var(--grey);">
           SV ${sv>=0?'positive':'negative'} means the project is ${sv>=0?'ahead of':'behind'} schedule in value terms. SPI ${spi!==null && spi>=1 ? '≥ 1.0 = ahead of schedule.' : spi!==null ? '< 1.0 = behind schedule.' : ''}
         </div>
       `}
     </div>
   `));
+
+  // ===== S-Curve: Planned (Cumulative) vs Actual (Cumulative) cost over the project timeline =====
+  if(hasSchedule){
+    const startDate = new Date(project.start_date);
+    const endDate = new Date(project.end_date);
+    const monthList = [];
+    let cur = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+    const endMonth = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+    while(cur <= endMonth && monthList.length < 60){
+      monthList.push(`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}`);
+      cur.setMonth(cur.getMonth() + 1);
+    }
+    const totalMonths = monthList.length;
+
+    const plannedCumulative = monthList.map((m, idx) => cogsTotal * ((idx + 1) / totalMonths));
+
+    const actualByMonth = {};
+    state.lineItems.filter(i => i.statement_type === 'pnl' && i.period && Number(i.amount) < 0).forEach(i => {
+      const m = i.period.slice(0,7);
+      actualByMonth[m] = (actualByMonth[m] || 0) + Math.abs(Number(i.amount));
+    });
+    let runningActual = 0;
+    const todayMonth = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
+    const actualCumulative = monthList.map(m => {
+      if(m > todayMonth) return null; // don't project actuals into the future — line just stops
+      runningActual += (actualByMonth[m] || 0);
+      return runningActual;
+    });
+
+    const lastActualIdx = actualCumulative.reduce((last, v, i) => v !== null ? i : last, -1);
+    const aheadOrBehind = lastActualIdx >= 0 ? (actualCumulative[lastActualIdx] <= plannedCumulative[lastActualIdx] ? 'under' : 'over') : null;
+
+    const sCurveCard = el(`
+      <div class="card">
+        <div class="card-title">S-Curve <span style="font-weight:400;font-size:12px;color:var(--grey);">— planned vs actual cumulative cost, spot drift early</span></div>
+        ${chartCanvas(220)}
+        ${aheadOrBehind ? `<div style="font-size:11.5px;color:var(--grey);margin-top:2px;">Actual spend is currently tracking <strong style="color:${aheadOrBehind==='under'?'#6FCF97':'#E2807A'};">${aheadOrBehind === 'under' ? 'under' : 'over'}</strong> the planned curve.</div>` : ''}
+      </div>
+    `);
+    wrap.appendChild(sCurveCard);
+    mountMultiLineChart(sCurveCard.querySelector('canvas'), 'scurve-'+project.id,
+      monthList.map(m => fmtPeriod(m+'-01')),
+      [
+        { label: 'Planned (Cumulative)', data: plannedCumulative, color: '#5266EB', dashed: true },
+        { label: 'Actual (Cumulative)', data: actualCumulative, color: aheadOrBehind === 'over' ? '#E2807A' : '#6FCF97', fill: true },
+      ]
+    );
+  }
 
   // ===== Bar chart: Budget vs Cost vs Final Forecast =====
   const barLabels = ['Original Budget', 'Cost to Date', 'EAC (Forecast)'];
@@ -2612,7 +2660,7 @@ function fmtMoneyShort(n){
   const abs = Math.abs(v);
   let formatted;
   if(abs >= 1000000) formatted = 'RM ' + (abs/1000000).toFixed(1) + 'M';
-  else if(abs >= 1000) formatted = 'RM ' + (abs/1000).toFixed(0) + 'K';
+  else if(abs >= 1000) formatted = 'RM ' + (abs/1000).toFixed(1) + 'K';
   else formatted = 'RM ' + abs.toFixed(0);
   return v < 0 ? `(${formatted})` : formatted;
 }
@@ -2653,7 +2701,7 @@ function mountLineChart(canvas, id, labels, data){
         plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => fmtMoney(ctx.parsed.y) } } },
         scales: {
           x: { ticks: { color: '#6E6C82', font: { size: 10 } }, grid: { display: false } },
-          y: { ticks: { color: '#6E6C82', font: { size: 10 }, callback: v => fmtMoneyShort(v) }, grid: { color: 'rgba(255,255,255,0.05)' } }
+          y: { ticks: { color: '#6E6C82', font: { size: 10 }, callback: v => fmtMoneyShort(v), maxTicksLimit: 6 }, grid: { color: 'rgba(255,255,255,0.05)' } }
         }
       }
     });
@@ -2671,11 +2719,11 @@ function mountBarChart(canvas, id, labels, data, colors, horizontal){
         responsive: true, maintainAspectRatio: false,
         plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => fmtMoney(horizontal ? ctx.parsed.x : ctx.parsed.y) } } },
         scales: horizontal ? {
-          x: { ticks: { color: '#6E6C82', font: { size: 10 }, callback: v => fmtMoneyShort(v) }, grid: { color: 'rgba(255,255,255,0.05)' } },
+          x: { ticks: { color: '#6E6C82', font: { size: 10 }, callback: v => fmtMoneyShort(v), maxTicksLimit: 6 }, grid: { color: 'rgba(255,255,255,0.05)' } },
           y: { ticks: { color: '#B8B6C6', font: { size: 11 } }, grid: { display: false } }
         } : {
           x: { ticks: { color: '#6E6C82', font: { size: 10 } }, grid: { display: false } },
-          y: { ticks: { color: '#6E6C82', font: { size: 10 }, callback: v => fmtMoneyShort(v) }, grid: { color: 'rgba(255,255,255,0.05)' } }
+          y: { ticks: { color: '#6E6C82', font: { size: 10 }, callback: v => fmtMoneyShort(v), maxTicksLimit: 6 }, grid: { color: 'rgba(255,255,255,0.05)' } }
         }
       }
     });
@@ -2693,7 +2741,32 @@ function mountGroupedBarChart(canvas, id, labels, datasets){
         plugins: { legend: { position: 'top', labels: { color: '#B8B6C6', font: { size: 10.5 }, boxWidth: 12 } }, tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${fmtMoney(ctx.parsed.y)}` } } },
         scales: {
           x: { ticks: { color: '#6E6C82', font: { size: 10 } }, grid: { display: false } },
-          y: { ticks: { color: '#6E6C82', font: { size: 10 }, callback: v => fmtMoneyShort(v) }, grid: { color: 'rgba(255,255,255,0.05)' } }
+          y: { ticks: { color: '#6E6C82', font: { size: 10 }, callback: v => fmtMoneyShort(v), maxTicksLimit: 6 }, grid: { color: 'rgba(255,255,255,0.05)' } }
+        }
+      }
+    });
+  }, 0);
+}
+function mountMultiLineChart(canvas, id, labels, series){
+  setTimeout(() => {
+    if(!canvas.isConnected) return;
+    destroyChart(id);
+    chartInstances[id] = new Chart(canvas.getContext('2d'), {
+      type: 'line',
+      data: { labels, datasets: series.map(s => ({
+        label: s.label, data: s.data, borderColor: s.color, backgroundColor: s.color + '22',
+        fill: s.fill || false, tension: 0.25, pointRadius: 2, borderWidth: 2,
+        borderDash: s.dashed ? [5,4] : undefined,
+      })) },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top', labels: { color: '#B8B6C6', font: { size: 10.5 }, boxWidth: 12 } },
+          tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${fmtMoney(ctx.parsed.y)}` } }
+        },
+        scales: {
+          x: { ticks: { color: '#6E6C82', font: { size: 10 } }, grid: { display: false } },
+          y: { ticks: { color: '#6E6C82', font: { size: 10 }, callback: v => fmtMoneyShort(v), maxTicksLimit: 6 }, grid: { color: 'rgba(255,255,255,0.05)' } }
         }
       }
     });

@@ -2188,6 +2188,59 @@ function PerformanceView(project){
   const ev = cogsTotal * (pc / 100);
   const cpi = pc > 0 && totalActual > 0 ? ev / totalActual : null;
 
+  // ===== Schedule metrics (computed early — needed for Health Score too) =====
+  const hasSchedule = project.start_date && project.end_date;
+  let pv = null, sv = null, spi = null;
+  if(hasSchedule){
+    const start = new Date(project.start_date);
+    const end = new Date(project.end_date);
+    const today = new Date();
+    const totalDuration = end - start;
+    let elapsed = today - start;
+    if(elapsed < 0) elapsed = 0;
+    if(elapsed > totalDuration) elapsed = totalDuration;
+    const timeElapsedPct = totalDuration > 0 ? (elapsed / totalDuration) * 100 : 0;
+    pv = cogsTotal * (timeElapsedPct / 100);
+    sv = ev - pv;
+    spi = pv > 0 ? ev / pv : null;
+  }
+
+  // ===== Project Health Score — combines CPI, SPI, budget usage, and alerts into one glance =====
+  const alerts = computeAlerts(project, state.lineItems, budgetItems);
+  const criticalAlerts = alerts.filter(a => a.severity === 'critical').length;
+  const warningAlerts = alerts.filter(a => a.severity === 'warning').length;
+  const reasons = [];
+  let healthLevel = 'good'; // good | watch | critical
+  if(criticalAlerts > 0){ healthLevel = 'critical'; reasons.push(`${criticalAlerts} critical alert${criticalAlerts>1?'s':''}`); }
+  if(cpi !== null && cpi < 0.9){ healthLevel = 'critical'; reasons.push('CPI below 0.9 (cost overrun)'); }
+  if(spi !== null && spi < 0.9){ healthLevel = 'critical'; reasons.push('SPI below 0.9 (behind schedule)'); }
+  if(healthLevel !== 'critical'){
+    if(warningAlerts > 0){ healthLevel = 'watch'; reasons.push(`${warningAlerts} warning alert${warningAlerts>1?'s':''}`); }
+    if(cpi !== null && cpi < 1){ healthLevel = 'watch'; reasons.push('CPI below 1.0'); }
+    if(spi !== null && spi < 1){ healthLevel = 'watch'; reasons.push('SPI below 1.0'); }
+  }
+  const healthMeta = {
+    good: { label: 'Healthy', color: '#6FCF97', bg: 'rgba(111,207,151,0.1)' },
+    watch: { label: 'Needs Attention', color: '#D9A441', bg: 'rgba(217,164,65,0.1)' },
+    critical: { label: 'Critical', color: '#E2807A', bg: 'rgba(226,128,122,0.1)' },
+  }[healthLevel];
+  wrap.appendChild(el(`
+    <div class="card" style="padding:16px 20px; background:${healthMeta.bg}; box-shadow:inset 0 0 0 1px ${healthMeta.color}33; margin-bottom:14px;">
+      <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+        <div style="width:14px; height:14px; border-radius:50%; background:${healthMeta.color}; flex-shrink:0;"></div>
+        <div style="flex:1; min-width:200px;">
+          <div style="font-size:15px; font-weight:700; color:${healthMeta.color};">${healthMeta.label}</div>
+          <div style="font-size:11.5px; color:var(--grey); margin-top:2px;">${reasons.length > 0 ? reasons.join(' · ') : 'CPI, SPI, budget, and alerts all within healthy range.'}</div>
+        </div>
+        <div style="display:flex; gap:18px; font-size:11.5px; color:var(--grey);">
+          <div>CPI <strong style="color:${cpi===null?'var(--text)':(cpi>=1?'#6FCF97':'#E2807A')};">${cpi===null?'—':cpi.toFixed(2)}</strong></div>
+          <div>SPI <strong style="color:${spi===null?'var(--text)':(spi>=1?'#6FCF97':'#E2807A')};">${spi===null?'—':spi.toFixed(2)}</strong></div>
+          <div>Alerts <strong style="color:var(--text);">${alerts.length}</strong></div>
+        </div>
+      </div>
+    </div>
+  `));
+
   wrap.appendChild(el(`
     <div class="card" style="padding:16px 18px;">
       <div class="card-title" style="font-size:12.5px; margin-bottom:10px;">Cost Forecast <span style="font-weight:400;font-size:11px;color:var(--grey);">— based on ${pc}% complete</span></div>
@@ -2214,23 +2267,6 @@ function PerformanceView(project){
       </div>
     </div>
   `));
-
-  // ===== Schedule Performance (EVM): PV / EV / SV / SPI =====
-  const hasSchedule = project.start_date && project.end_date;
-  let pv = null, sv = null, spi = null;
-  if(hasSchedule){
-    const start = new Date(project.start_date);
-    const end = new Date(project.end_date);
-    const today = new Date();
-    const totalDuration = end - start;
-    let elapsed = today - start;
-    if(elapsed < 0) elapsed = 0;
-    if(elapsed > totalDuration) elapsed = totalDuration;
-    const timeElapsedPct = totalDuration > 0 ? (elapsed / totalDuration) * 100 : 0;
-    pv = cogsTotal * (timeElapsedPct / 100);
-    sv = ev - pv;
-    spi = pv > 0 ? ev / pv : null;
-  }
 
   wrap.appendChild(el(`
     <div class="card" style="padding:16px 18px;">
@@ -2262,10 +2298,10 @@ function PerformanceView(project){
   `));
 
   // ===== S-Curve: Planned (Cumulative) vs Actual (Cumulative) cost over the project timeline =====
+  let monthList = [], plannedCumulative = [], actualCumulative = [];
   if(hasSchedule){
     const startDate = new Date(project.start_date);
     const endDate = new Date(project.end_date);
-    const monthList = [];
     let cur = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
     const endMonth = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
     while(cur <= endMonth && monthList.length < 60){
@@ -2273,8 +2309,7 @@ function PerformanceView(project){
       cur.setMonth(cur.getMonth() + 1);
     }
     const totalMonths = monthList.length;
-
-    const plannedCumulative = monthList.map((m, idx) => cogsTotal * ((idx + 1) / totalMonths));
+    plannedCumulative = monthList.map((m, idx) => cogsTotal * ((idx + 1) / totalMonths));
 
     const actualByMonth = {};
     state.lineItems.filter(i => i.statement_type === 'pnl' && i.period && Number(i.amount) < 0).forEach(i => {
@@ -2283,8 +2318,8 @@ function PerformanceView(project){
     });
     let runningActual = 0;
     const todayMonth = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
-    const actualCumulative = monthList.map(m => {
-      if(m > todayMonth) return null; // don't project actuals into the future — line just stops
+    actualCumulative = monthList.map(m => {
+      if(m > todayMonth) return null;
       runningActual += (actualByMonth[m] || 0);
       return runningActual;
     });
@@ -2307,7 +2342,79 @@ function PerformanceView(project){
         { label: 'Actual (Cumulative)', data: actualCumulative, color: aheadOrBehind === 'over' ? '#E2807A' : '#6FCF97', fill: true },
       ]
     );
+
+    // ===== Cost Ratio Trend — Actual/Planned ratio each month (leading indicator; true CPI needs
+    // historical % complete which PROFIT doesn't track over time, so this ratio is the closest
+    // computable proxy — above 1.0 means spend is outpacing the plan) =====
+    const ratioTrend = monthList.map((m, idx) => actualCumulative[idx] === null ? null : (plannedCumulative[idx] > 0 ? actualCumulative[idx] / plannedCumulative[idx] : null));
+    const validRatios = ratioTrend.filter(v => v !== null);
+    if(validRatios.length >= 2){
+      const trendDirection = validRatios[validRatios.length-1] - validRatios[Math.max(0, validRatios.length-3)];
+      const trendCard = el(`
+        <div class="card">
+          <div class="card-title">Cost Ratio Trend <span style="font-weight:400;font-size:12px;color:var(--grey);">— Actual ÷ Planned each month; rising = drifting over budget</span></div>
+          ${chartCanvas(180)}
+          <div style="font-size:11.5px;color:var(--grey);margin-top:2px;">${trendDirection > 0.02 ? '<strong style="color:#E2807A;">Rising</strong> over the last few months — cost is drifting ahead of plan.' : trendDirection < -0.02 ? '<strong style="color:#6FCF97;">Falling</strong> — cost efficiency is improving.' : 'Stable — tracking close to plan.'}</div>
+        </div>
+      `);
+      wrap.appendChild(trendCard);
+      mountLineChart(trendCard.querySelector('canvas'), 'cost-ratio-trend-'+project.id, monthList.map(m => fmtPeriod(m+'-01')), ratioTrend);
+    }
   }
+
+  // ===== Budget Utilization Heatmap — one tile per category, colored by usage % =====
+  const heatmapCard = el(`
+    <div class="card">
+      <div class="card-title">Budget Utilization Heatmap <span style="font-weight:400;font-size:12px;color:var(--grey);">— scan for hot categories at a glance</span></div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:8px;">
+        ${budgetItems.map(b => {
+          const actual = actualFor(b.category);
+          const budget = Number(b.budget_amount);
+          const usagePct = budget > 0 ? (actual / budget * 100) : 0;
+          const color = usagePct > 100 ? '#E2807A' : usagePct >= 85 ? '#D9A441' : '#6FCF97';
+          const bg = usagePct > 100 ? 'rgba(226,128,122,0.16)' : usagePct >= 85 ? 'rgba(217,164,65,0.16)' : 'rgba(111,207,151,0.13)';
+          return `
+            <div style="background:${bg}; box-shadow:inset 0 0 0 1px ${color}44; border-radius:8px; padding:10px 12px;">
+              <div style="font-size:10.5px; color:var(--text); margin-bottom:4px; line-height:1.3;">${esc(b.category)}</div>
+              <div style="font-size:16px; font-weight:700; color:${color};">${usagePct.toFixed(0)}%</div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `);
+  wrap.appendChild(heatmapCard);
+
+  // ===== Variance Waterfall — which categories bridge Budget to Actual =====
+  const catDeltas = budgetItems.map(b => ({ category: b.category, delta: actualFor(b.category) - Number(b.budget_amount) }))
+    .sort((a,b) => Math.abs(b.delta) - Math.abs(a.delta));
+  const topDeltas = catDeltas.slice(0, 6);
+  const otherDelta = catDeltas.slice(6).reduce((s,d) => s + d.delta, 0);
+  if(catDeltas.length > 6) topDeltas.push({ category: 'Other', delta: otherDelta });
+
+  let cum = cogsTotal;
+  const waterfallLabels = ['Budget'];
+  const waterfallRanges = [[0, cogsTotal]];
+  const waterfallColors = ['#5266EB'];
+  topDeltas.forEach(d => {
+    const from = cum;
+    cum += d.delta;
+    waterfallLabels.push(d.category);
+    waterfallRanges.push([Math.min(from, cum), Math.max(from, cum)]);
+    waterfallColors.push(d.delta > 0 ? '#E2807A' : '#6FCF97');
+  });
+  waterfallLabels.push('Actual');
+  waterfallRanges.push([0, totalActual]);
+  waterfallColors.push('#5266EB');
+
+  const waterfallCard = el(`
+    <div class="card">
+      <div class="card-title">Variance Waterfall <span style="font-weight:400;font-size:12px;color:var(--grey);">— which categories bridge Budget to Actual</span></div>
+      ${chartCanvas(230)}
+    </div>
+  `);
+  wrap.appendChild(waterfallCard);
+  mountWaterfallChart(waterfallCard.querySelector('canvas'), 'waterfall-'+project.id, waterfallLabels, waterfallRanges, waterfallColors);
 
   // ===== Bar chart: Budget vs Cost vs Final Forecast =====
   const barLabels = ['Original Budget', 'Cost to Date', 'EAC (Forecast)'];
@@ -2766,6 +2873,30 @@ function mountMultiLineChart(canvas, id, labels, series){
         },
         scales: {
           x: { ticks: { color: '#6E6C82', font: { size: 10 } }, grid: { display: false } },
+          y: { ticks: { color: '#6E6C82', font: { size: 10 }, callback: v => fmtMoneyShort(v), maxTicksLimit: 6 }, grid: { color: 'rgba(255,255,255,0.05)' } }
+        }
+      }
+    });
+  }, 0);
+}
+function mountWaterfallChart(canvas, id, labels, ranges, colors){
+  setTimeout(() => {
+    if(!canvas.isConnected) return;
+    destroyChart(id);
+    chartInstances[id] = new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: { labels, datasets: [{ data: ranges, backgroundColor: colors, borderRadius: 4 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: (ctx) => {
+            const [lo, hi] = ctx.raw;
+            return fmtMoney(hi - lo === 0 ? lo : (ctx.dataIndex === 0 || ctx.dataIndex === labels.length-1) ? hi : hi - lo);
+          } } }
+        },
+        scales: {
+          x: { ticks: { color: '#6E6C82', font: { size: 9.5 }, maxRotation: 40, minRotation: 0 }, grid: { display: false } },
           y: { ticks: { color: '#6E6C82', font: { size: 10 }, callback: v => fmtMoneyShort(v), maxTicksLimit: 6 }, grid: { color: 'rgba(255,255,255,0.05)' } }
         }
       }

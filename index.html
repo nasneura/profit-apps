@@ -1463,6 +1463,30 @@ function SummaryView(items, project){
   allCashItemsForTrend.forEach(i => { const m = i.period.slice(0,7); cfByMonth[m] = (cfByMonth[m]||0) + Number(i.amount); });
   const cfTrend = Object.keys(cfByMonth).sort().map(m => cfByMonth[m]);
 
+  // ===== Project Details — quick glance at what was entered via Edit Project =====
+  const hasDetails = project.client_name || project.location || project.contract_value > 0 || project.start_date || project.end_date || (project.percent_complete > 0);
+  if(hasDetails){
+    const detailItems = [];
+    if(project.client_name) detailItems.push(['Client', esc(project.client_name)]);
+    if(project.location) detailItems.push(['Location', esc(project.location)]);
+    if(project.start_date || project.end_date) detailItems.push(['Timeline', `${project.start_date ? fmtPeriod(project.start_date) : '—'} → ${project.end_date ? fmtPeriod(project.end_date) : '—'}`]);
+    if(project.contract_value > 0) detailItems.push(['Contract Value', fmtMoney(project.contract_value)]);
+    if(project.percent_complete > 0) detailItems.push(['% Complete', `${project.percent_complete}%`]);
+    wrap.appendChild(el(`
+      <div class="card">
+        <div class="card-title">Project Details</div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px;">
+          ${detailItems.map(([label, value]) => `
+            <div>
+              <div style="font-size:10.5px; text-transform:uppercase; letter-spacing:0.04em; color:var(--grey); margin-bottom:3px;">${label}</div>
+              <div style="font-size:13.5px; font-weight:500;">${value}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `));
+  }
+
   wrap.appendChild(el(`
     <div class="stat-grid">
       <div class="stat-card">

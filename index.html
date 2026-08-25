@@ -1847,11 +1847,14 @@ function PnLSummaryCards(items){
   const profit = revenue - expenses;
   const margin = revenue > 0 ? (profit / revenue * 100) : 0;
   return el(`
-    <div class="stat-grid">
-      <div class="stat-card"><div class="stat-label">Total Revenue</div><div class="stat-value pos">${fmtMoney(revenue)}</div></div>
-      <div class="stat-card"><div class="stat-label">Total Expenses</div><div class="stat-value neg">${fmtMoney(expenses)}</div></div>
-      <div class="stat-card"><div class="stat-label">Profit</div><div class="stat-value ${profit>=0?'pos':'neg'}">${fmtMoney(profit)}</div></div>
-      <div class="stat-card"><div class="stat-label">Profit Margin</div><div class="stat-value ${margin>=0?'pos':'neg'}">${margin.toFixed(1)}%</div></div>
+    <div>
+      <div class="page-sub" style="margin-bottom:10px;"><strong>Accrual-based</strong> — Revenue reflects work done (accrued), not cash received. See <strong>Cashflow</strong> tab for when money actually moves.</div>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-label">Total Revenue</div><div class="stat-value pos">${fmtMoney(revenue)}</div></div>
+        <div class="stat-card"><div class="stat-label">Total Expenses</div><div class="stat-value neg">${fmtMoney(expenses)}</div></div>
+        <div class="stat-card"><div class="stat-label">Profit</div><div class="stat-value ${profit>=0?'pos':'neg'}">${fmtMoney(profit)}</div></div>
+        <div class="stat-card"><div class="stat-label">Profit Margin</div><div class="stat-value ${margin>=0?'pos':'neg'}">${margin.toFixed(1)}%</div></div>
+      </div>
     </div>
   `);
 }
@@ -3083,6 +3086,14 @@ function buildConsolidatedStatementView(statementType, label){
   const items = state.lineItems.filter(i => i.statement_type === statementType);
   const total = items.reduce((s,i) => s + Number(i.amount), 0);
   const projectCount = new Set(items.map(i => i.project_id)).size;
+
+  wrap.appendChild(el(`
+    <div class="page-sub" style="margin-bottom:10px;">
+      ${statementType === 'pnl'
+        ? '<strong>PnL is accrual-based</strong> — Revenue here reflects the value of work done (accrued) in each month, not cash actually received. Billing/invoicing usually happens after job completion, so the money often lands in a later month. To see when cash actually moves, check the <strong>Cashflow</strong> tab (Cash-In).'
+        : '<strong>Cashflow is cash-based</strong> — these figures reflect money actually moving in/out in each month, regardless of when the related work was done or invoiced.'}
+    </div>
+  `));
 
   // ===== 1. Headline — the single number that answers "how are we doing?" =====
   wrap.appendChild(el(`

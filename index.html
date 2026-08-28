@@ -3226,6 +3226,7 @@ function DashboardHomeView(){
 
   // ===== 1. Hero Row =====
   const totalPortfolioValue = projects.reduce((s,p) => s + (Number(p.contract_value) || 0), 0);
+  const activeCount = projects.filter(p => (Number(p.percent_complete) || 0) < 100).length;
   const pnlItems = state.lineItems.filter(i => i.statement_type === 'pnl');
   const totalNetProfit = pnlItems.reduce((s,i) => s + Number(i.amount), 0);
   const cfItems = state.lineItems.filter(i => i.statement_type === 'cashflow');
@@ -3260,14 +3261,25 @@ function DashboardHomeView(){
       </div>
       <div class="stat-card">
         <div class="stat-label">Active Projects</div>
-        <div class="stat-value" style="font-size:24px;">${projects.length}</div>
+        <div class="stat-value" style="font-size:24px;">${activeCount} <span style="font-size:14px;color:var(--grey);font-weight:400;">of ${projects.length} total</span></div>
+        <div style="font-size:10.5px;color:var(--grey);margin-top:4px;">Active = % Complete under 100</div>
       </div>
     </div>
   `));
 
   // ===== 2. Portfolio Health Strip =====
   const healthColors = { good: '#6FCF97', watch: '#D9A441', critical: '#E2807A' };
-  const healthCard = el(`<div class="card"><div class="card-title" style="font-size:12.5px;">Portfolio Health</div><div id="health-strip" style="display:flex; gap:10px; flex-wrap:wrap;"></div></div>`);
+  const healthCard = el(`
+    <div class="card">
+      <div class="card-title" style="font-size:12.5px; margin-bottom:8px;">Portfolio Health</div>
+      <div style="display:flex; gap:16px; margin-bottom:12px; font-size:11px; color:var(--grey);">
+        <div style="display:flex; align-items:center; gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:#6FCF97;"></span>Healthy — CPI/SPI ≥ 1.0, no alerts</div>
+        <div style="display:flex; align-items:center; gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:#D9A441;"></span>Needs Attention — CPI/SPI &lt; 1.0 or warning alert</div>
+        <div style="display:flex; align-items:center; gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:#E2807A;"></span>Critical — CPI/SPI &lt; 0.9 or critical alert</div>
+      </div>
+      <div id="health-strip" style="display:flex; gap:10px; flex-wrap:wrap;"></div>
+    </div>
+  `);
   const stripEl = healthCard.querySelector('#health-strip');
   projects.forEach(p => {
     const level = computeProjectHealthLevel(p);
@@ -3309,11 +3321,15 @@ function DashboardHomeView(){
     wrap.appendChild(el(`
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
         <div class="card">
-          <div class="card-title" style="font-size:13px;">Top Performers</div>
+          <div class="card-title" style="font-size:13px;">Top Performers <span style="font-weight:400;font-size:11px;color:var(--grey);">— ranked by Net Profit</span></div>
           ${top3.map(([n,v]) => perfRow(n, v, '#6FCF97')).join('') || '<div style="font-size:12.5px;color:var(--grey);">No data yet.</div>'}
         </div>
         <div class="card">
-          <div class="card-title" style="font-size:13px;">Needs Attention</div>
+          <div class="card-title" style="font-size:13px;">Needs Attention <span style="font-weight:400;font-size:11px;color:var(--grey);">— lowest Net Profit</span></div>
+          <div style="display:flex; gap:14px; margin-bottom:8px; font-size:10px; color:var(--grey);">
+            <div style="display:flex; align-items:center; gap:4px;"><span style="width:7px;height:7px;border-radius:50%;background:#E2807A;"></span>Loss-making</div>
+            <div style="display:flex; align-items:center; gap:4px;"><span style="width:7px;height:7px;border-radius:50%;background:#D9A441;"></span>Lowest profit, still positive</div>
+          </div>
           ${bottom3.length > 0 ? bottom3.map(([n,v]) => perfRow(n, v, v<0?'#E2807A':'#D9A441')).join('') : '<div style="font-size:12.5px;color:var(--grey);">Nothing flagged.</div>'}
         </div>
       </div>

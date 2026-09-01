@@ -231,7 +231,7 @@ let state = {
   profile: null,
   projects: [],
   selectedProjectId: null, // null = not chosen, 'consolidated' = consolidated view
-  consolidatedTab: 'pnl', // 'pnl' | 'cashflow' | 'forecast' | 'analysis'
+  consolidatedTab: 'home', // 'home' | 'pnl' | 'cashflow' | 'forecast' | 'analysis'
   activeTab: 'summary',
   lineItems: [],
   uploads: [],
@@ -1279,7 +1279,7 @@ function Sidebar(){
         <div>
           <div class="nav-section-label">Overview</div>
           <div class="project-list">
-            <div class="project-item consolidated" style="font-weight:600; cursor:default; opacity:0.85;">◈ Dashboard</div>
+            <div class="project-item consolidated" id="dashboard-home-link" style="font-weight:600; cursor:pointer; background:${state.selectedProjectId==='consolidated' && state.consolidatedTab==='home' ? 'var(--panel-alt)' : 'transparent'};">◈ Dashboard</div>
             <div class="dashboard-sub ${state.selectedProjectId==='consolidated' && state.consolidatedTab==='pnl'?'active':''}" data-tab="pnl" style="padding:7px 10px 7px 26px; border-radius:10px; cursor:pointer; font-size:12.5px; color:${state.selectedProjectId==='consolidated' && state.consolidatedTab==='pnl' ? 'var(--text)' : 'var(--grey)'}; background:${state.selectedProjectId==='consolidated' && state.consolidatedTab==='pnl' ? 'var(--panel-alt)' : 'transparent'};">Consolidated PnL</div>
             <div class="dashboard-sub ${state.selectedProjectId==='consolidated' && state.consolidatedTab==='cashflow'?'active':''}" data-tab="cashflow" style="padding:7px 10px 7px 26px; border-radius:10px; cursor:pointer; font-size:12.5px; color:${state.selectedProjectId==='consolidated' && state.consolidatedTab==='cashflow' ? 'var(--text)' : 'var(--grey)'}; background:${state.selectedProjectId==='consolidated' && state.consolidatedTab==='cashflow' ? 'var(--panel-alt)' : 'transparent'};">Consolidated Cashflow</div>
             <div class="dashboard-sub ${state.selectedProjectId==='consolidated' && state.consolidatedTab==='forecast'?'active':''}" data-tab="forecast" style="padding:7px 10px 7px 26px; border-radius:10px; cursor:pointer; font-size:12.5px; color:${state.selectedProjectId==='consolidated' && state.consolidatedTab==='forecast' ? 'var(--text)' : 'var(--grey)'}; background:${state.selectedProjectId==='consolidated' && state.consolidatedTab==='forecast' ? 'var(--panel-alt)' : 'transparent'};">Consolidated Forecast</div>
@@ -1312,6 +1312,11 @@ function Sidebar(){
       selectProject('consolidated');
     });
   });
+  const dashHome = sb_.querySelector('#dashboard-home-link');
+  if(dashHome) dashHome.addEventListener('click', () => {
+    state.consolidatedTab = 'home';
+    selectProject('consolidated');
+  });
   const npBtn = sb_.querySelector('#new-project-btn');
   if(npBtn) npBtn.addEventListener('click', () => { state.showNewProjectModal = true; render(); });
   sb_.querySelector('#signout-btn').addEventListener('click', handleSignOut);
@@ -1336,6 +1341,7 @@ function MainPanel(){
   const isAdmin = state.profile && state.profile.role === 'admin';
 
   const consolidatedTitles = {
+    home: ['Dashboard', 'Portfolio-wide overview — how is everything doing right now?'],
     pnl: ['Consolidated PnL', 'Combined PnL across all projects'],
     cashflow: ['Consolidated Cashflow', 'Combined Cashflow across all projects'],
     forecast: ['Consolidated Forecast', 'Combined running cash balance across all projects'],
@@ -1425,6 +1431,7 @@ function MainPanel(){
     if(state.activeTab === 'charter') main.appendChild(CharterView(project));
     if(state.activeTab === 'uploads') main.appendChild(UploadsView());
   } else {
+    if(state.consolidatedTab === 'home') main.appendChild(DashboardHomeView());
     if(state.consolidatedTab === 'pnl') main.appendChild(ConsolidatedPnLView());
     if(state.consolidatedTab === 'cashflow') main.appendChild(ConsolidatedCashflowView());
     if(state.consolidatedTab === 'forecast') main.appendChild(ForecastView(getConsolidatedVirtualProject()));
@@ -3173,6 +3180,216 @@ function buildConsolidatedStatementView(statementType, label){
 
 function ConsolidatedPnLView(){ return buildConsolidatedStatementView('pnl', 'PnL'); }
 function ConsolidatedCashflowView(){ return buildConsolidatedStatementView('cashflow', 'Cashflow'); }
+
+function computeProjectHealthLevel(project){
+  const budgetItems = (state.budgetItems || []).filter(b => b.project_id === project.id);
+  const lineItems = state.lineItems.filter(i => i.project_id === project.id);
+  const cogsTotal = budgetItems.reduce((s,b) => s + Number(b.budget_amount), 0);
+  const totalActual = budgetItems.reduce((s,b) => {
+    const catLower = b.category.trim().toLowerCase();
+    return s + lineItems.filter(i => {
+      if(i.statement_type !== 'pnl') return false;
+      const cat = (i.category || '').trim().toLowerCase();
+      const sub = (i.subcategory || '').trim().toLowerCase();
+      return cat === catLower || sub === catLower;
+    }).reduce((sum,i) => sum + Math.abs(Number(i.amount)), 0);
+  }, 0);
+  const pc = Math.max(0, Math.min(100, Number(project.percent_complete) || 0));
+  const ev = cogsTotal * (pc / 100);
+  const cpi = pc > 0 && totalActual > 0 ? ev / totalActual : null;
+  let spi = null;
+  if(project.start_date && project.end_date){
+    const start = new Date(project.start_date), end = new Date(project.end_date), today = new Date();
+    const totalDuration = end - start;
+    let elapsed = today - start;
+    if(elapsed < 0) elapsed = 0;
+    if(elapsed > totalDuration) elapsed = totalDuration;
+    const pv = cogsTotal * (totalDuration > 0 ? elapsed / totalDuration : 0);
+    spi = pv > 0 ? ev / pv : null;
+  }
+  const alerts = computeAlerts(project, lineItems, budgetItems);
+  const critical = alerts.filter(a => a.severity === 'critical').length;
+  const warning = alerts.filter(a => a.severity === 'warning').length;
+  if(critical > 0 || (cpi !== null && cpi < 0.9) || (spi !== null && spi < 0.9)) return 'critical';
+  if(warning > 0 || (cpi !== null && cpi < 1) || (spi !== null && spi < 1)) return 'watch';
+  return 'good';
+}
+
+function DashboardHomeView(){
+  const wrap = el(`<div></div>`);
+  const projects = state.projects || [];
+
+  if(projects.length === 0){
+    wrap.appendChild(el(`<div class="empty-state"><div class="big">No projects yet</div><div>Create a project to see your portfolio overview here.</div></div>`));
+    return wrap;
+  }
+
+  // ===== 1. Hero Row =====
+  const totalPortfolioValue = projects.reduce((s,p) => s + (Number(p.contract_value) || 0), 0);
+  const activeCount = projects.filter(p => (Number(p.percent_complete) || 0) < 100).length;
+  const pnlItems = state.lineItems.filter(i => i.statement_type === 'pnl');
+  const totalNetProfit = pnlItems.reduce((s,i) => s + Number(i.amount), 0);
+  const cfItems = state.lineItems.filter(i => i.statement_type === 'cashflow');
+  const totalOpeningBalance = projects.reduce((s,p) => s + (Number(p.opening_balance) || 0), 0);
+  const totalCashPosition = totalOpeningBalance + cfItems.reduce((s,i) => s + Number(i.amount), 0);
+
+  const pnlByMonth = {};
+  pnlItems.filter(i => i.period).forEach(i => { const m = i.period.slice(0,7); pnlByMonth[m] = (pnlByMonth[m]||0) + Number(i.amount); });
+  const pnlTrend = Object.keys(pnlByMonth).sort().map(m => pnlByMonth[m]);
+
+  const cfByMonth = {};
+  cfItems.filter(i => i.period).forEach(i => { const m = i.period.slice(0,7); cfByMonth[m] = (cfByMonth[m]||0) + Number(i.amount); });
+  const months = Object.keys(cfByMonth).sort();
+  let running = totalOpeningBalance;
+  const balanceTrend = months.map(m => { running += cfByMonth[m]; return running; });
+
+  wrap.appendChild(el(`
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Portfolio Value</div>
+        <div class="stat-value" style="font-size:24px;">${fmtMoney(totalPortfolioValue)}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Net Profit</div>
+        <div class="stat-value ${totalNetProfit>=0?'pos':'neg'}" style="font-size:24px;">${fmtMoney(totalNetProfit)}</div>
+        ${sparklineSVG(pnlTrend, totalNetProfit>=0?'var(--teal)':'var(--rust)')}
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Cash Position</div>
+        <div class="stat-value ${totalCashPosition>=0?'pos':'neg'}" style="font-size:24px;">${fmtMoney(totalCashPosition)}</div>
+        ${sparklineSVG(balanceTrend, totalCashPosition>=0?'var(--teal)':'var(--rust)')}
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Active Projects</div>
+        <div class="stat-value" style="font-size:24px;">${activeCount} <span style="font-size:14px;color:var(--grey);font-weight:400;">of ${projects.length} total</span></div>
+        <div style="font-size:10.5px;color:var(--grey);margin-top:4px;">Active = % Complete under 100</div>
+      </div>
+    </div>
+  `));
+
+  // ===== 2. Portfolio Health Strip =====
+  const healthColors = { good: '#6FCF97', watch: '#D9A441', critical: '#E2807A' };
+  const healthCard = el(`
+    <div class="card">
+      <div class="card-title" style="font-size:12.5px; margin-bottom:8px;">Portfolio Health</div>
+      <div style="display:flex; gap:16px; margin-bottom:12px; font-size:11px; color:var(--grey);">
+        <div style="display:flex; align-items:center; gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:#6FCF97;"></span>Healthy — CPI/SPI ≥ 1.0, no alerts</div>
+        <div style="display:flex; align-items:center; gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:#D9A441;"></span>Needs Attention — CPI/SPI &lt; 1.0 or warning alert</div>
+        <div style="display:flex; align-items:center; gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:#E2807A;"></span>Critical — CPI/SPI &lt; 0.9 or critical alert</div>
+      </div>
+      <div id="health-strip" style="display:flex; gap:10px; flex-wrap:wrap;"></div>
+    </div>
+  `);
+  const stripEl = healthCard.querySelector('#health-strip');
+  projects.forEach(p => {
+    const level = computeProjectHealthLevel(p);
+    const chip = el(`<div style="display:flex; align-items:center; gap:8px; background:var(--panel-alt); border-radius:20px; padding:7px 14px 7px 10px; font-size:12px; cursor:pointer;"><span style="width:9px;height:9px;border-radius:50%;background:${healthColors[level]};flex-shrink:0;"></span>${esc(p.name)}</div>`);
+    chip.addEventListener('click', () => selectProject(p.id));
+    stripEl.appendChild(chip);
+  });
+  wrap.appendChild(healthCard);
+
+  // ===== 3. Combined Cash Trajectory =====
+  if(months.length > 0){
+    const trajCard = el(`
+      <div class="card">
+        <div class="card-title">Combined Cash Trajectory <span style="font-weight:400;font-size:12px;color:var(--grey);">— portfolio-wide cash balance forecast</span></div>
+        ${chartCanvas(220)}
+      </div>
+    `);
+    wrap.appendChild(trajCard);
+    mountLineChart(trajCard.querySelector('canvas'), 'dashboard-trajectory', months.map(m => fmtPeriod(m+'-01')), balanceTrend);
+  }
+
+  // ===== 4. Top & Bottom Performers =====
+  const byProject = {};
+  pnlItems.forEach(i => {
+    const name = projects.find(p => p.id === i.project_id)?.name || 'Unknown';
+    byProject[name] = (byProject[name] || 0) + Number(i.amount);
+  });
+  const ranked = Object.entries(byProject).sort((a,b) => b[1]-a[1]);
+  if(ranked.length > 0){
+    const top3 = ranked.slice(0, 3);
+    const bottom3 = ranked.slice(-3).reverse().filter(r => !top3.includes(r));
+    const maxAbs = Math.max(...ranked.map(([,v]) => Math.abs(v)), 1);
+    const perfRow = (name, val, color) => `
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--line); font-size:12.5px;">
+        <span style="flex:0 0 42%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${esc(name)}">${esc(name)}</span>
+        <div style="flex:1; height:6px; background:var(--panel-alt); border-radius:3px; margin:0 10px; overflow:hidden;"><div style="width:${Math.min(100, Math.abs(val)/maxAbs*100)}%; height:100%; background:${color};"></div></div>
+        <span style="${val>=0?'color:var(--teal)':'color:var(--rust)'}; flex-shrink:0;">${fmtMoney(val)}</span>
+      </div>`;
+    wrap.appendChild(el(`
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+        <div class="card">
+          <div class="card-title" style="font-size:13px;">Top Performers <span style="font-weight:400;font-size:11px;color:var(--grey);">— ranked by Net Profit</span></div>
+          ${top3.map(([n,v]) => perfRow(n, v, '#6FCF97')).join('') || '<div style="font-size:12.5px;color:var(--grey);">No data yet.</div>'}
+        </div>
+        <div class="card">
+          <div class="card-title" style="font-size:13px;">Needs Attention <span style="font-weight:400;font-size:11px;color:var(--grey);">— lowest Net Profit</span></div>
+          <div style="display:flex; gap:14px; margin-bottom:8px; font-size:10px; color:var(--grey);">
+            <div style="display:flex; align-items:center; gap:4px;"><span style="width:7px;height:7px;border-radius:50%;background:#E2807A;"></span>Loss-making</div>
+            <div style="display:flex; align-items:center; gap:4px;"><span style="width:7px;height:7px;border-radius:50%;background:#D9A441;"></span>Lowest profit, still positive</div>
+          </div>
+          ${bottom3.length > 0 ? bottom3.map(([n,v]) => perfRow(n, v, v<0?'#E2807A':'#D9A441')).join('') : '<div style="font-size:12.5px;color:var(--grey);">Nothing flagged.</div>'}
+        </div>
+      </div>
+    `));
+  }
+
+  // ===== 5. Portfolio Alerts Digest =====
+  const portfolioAlerts = [];
+  projects.forEach(p => {
+    const projItems = state.lineItems.filter(i => i.project_id === p.id);
+    const projBudget = (state.budgetItems || []).filter(b => b.project_id === p.id);
+    computeAlerts(p, projItems, projBudget).forEach(a => portfolioAlerts.push({ ...a, projectName: p.name }));
+  });
+  const sevOrder = { critical: 0, warning: 1 };
+  portfolioAlerts.sort((a,b) => sevOrder[a.severity] - sevOrder[b.severity]);
+  const topAlerts = portfolioAlerts.slice(0, 5);
+  const alertsCard = el(`<div class="card"><div class="card-title" style="font-size:12.5px;">Portfolio Alerts Digest</div></div>`);
+  if(topAlerts.length === 0){
+    alertsCard.appendChild(el(`<div style="font-size:13px;color:var(--grey);">No issues detected across the portfolio.</div>`));
+  } else {
+    topAlerts.forEach(a => {
+      const isCritical = a.severity === 'critical';
+      alertsCard.appendChild(el(`
+        <div style="display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); font-size:12.5px;">
+          <span style="font-size:9px;font-weight:700;text-transform:uppercase;padding:2px 7px;border-radius:20px;flex-shrink:0;background:${isCritical?'var(--rust-soft)':'var(--gold-soft)'};color:${isCritical?'var(--rust)':'var(--gold)'};">${a.severity}</span>
+          <span>${esc(a.projectName)} · ${a.title}</span>
+        </div>
+      `));
+    });
+    const linkEl = el(`<div style="font-size:11.5px;color:var(--gold);margin-top:10px;cursor:pointer;">See all alerts in Consolidated Analysis →</div>`);
+    linkEl.addEventListener('click', () => { state.consolidatedTab = 'analysis'; selectProject('consolidated'); });
+    alertsCard.appendChild(linkEl);
+  }
+  wrap.appendChild(alertsCard);
+
+  // ===== 6. Quick Access Tiles =====
+  const totalAlerts = portfolioAlerts.length;
+  const tiles = [
+    { title: 'Consolidated PnL', stat: fmtMoney(totalNetProfit), cls: totalNetProfit>=0?'pos':'neg', desc: 'Net PnL, all projects', tab: 'pnl' },
+    { title: 'Consolidated Cashflow', stat: fmtMoney(totalCashPosition), cls: totalCashPosition>=0?'pos':'neg', desc: 'Net cash position, all projects', tab: 'cashflow' },
+    { title: 'Consolidated Forecast', stat: months.length > 0 ? fmtPeriod(months[months.length-1]+'-01') : '—', cls: '', desc: 'Cash trajectory', tab: 'forecast' },
+    { title: 'Consolidated Analysis', stat: String(totalAlerts), cls: totalAlerts>0?'neg':'pos', desc: 'Open alerts', tab: 'analysis' },
+  ];
+  wrap.appendChild(el(`<div class="page-sub" style="margin:24px 0 10px;">Explore</div>`));
+  const tileGrid = el(`<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px;"></div>`);
+  tiles.forEach(t => {
+    const tileEl = el(`
+      <div class="card" style="cursor:pointer; margin-bottom:0;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:10px;">${t.title}</div>
+        <div class="stat-value ${t.cls}" style="font-size:19px;">${t.stat}</div>
+        <div style="font-size:11px;color:var(--grey);margin-top:8px;">${t.desc} →</div>
+      </div>
+    `);
+    tileEl.addEventListener('click', () => { state.consolidatedTab = t.tab; selectProject('consolidated'); });
+    tileGrid.appendChild(tileEl);
+  });
+  wrap.appendChild(tileGrid);
+
+  return wrap;
+}
 
 function ConsolidatedAnalysisView(){
   const wrap = el(`<div></div>`);

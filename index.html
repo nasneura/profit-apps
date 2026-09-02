@@ -1416,12 +1416,14 @@ function MainPanel(){
       const pnlItems = filteredItems.filter(i=>i.statement_type==='pnl');
       const pnlItemsForSummary = state.viewMode === 'grid' ? state.lineItems.filter(i=>i.statement_type==='pnl') : pnlItems;
       main.appendChild(PnLSummaryCards(pnlItemsForSummary));
+      main.appendChild(StatementComparisonChart(pnlItemsForSummary, 'pnl', project));
       main.appendChild(state.viewMode === 'grid' ? MatrixGridView(state.lineItems.filter(i=>i.statement_type==='pnl'), 'pnl') : StatementTable(pnlItems, 'pnl'));
     }
     if(state.activeTab === 'cashflow'){
       const cfItems = filteredItems.filter(i=>i.statement_type==='cashflow');
       const cfItemsForSummary = state.viewMode === 'grid' ? state.lineItems.filter(i=>i.statement_type==='cashflow') : cfItems;
       main.appendChild(CashflowSummaryCards(cfItemsForSummary));
+      main.appendChild(StatementComparisonChart(cfItemsForSummary, 'cashflow', project));
       main.appendChild(state.viewMode === 'grid' ? MatrixGridView(state.lineItems.filter(i=>i.statement_type==='cashflow'), 'cashflow', project) : StatementTable(cfItems, 'cashflow'));
     }
     if(state.activeTab === 'forecast') main.appendChild(ForecastView(project));
@@ -1877,6 +1879,42 @@ function CashflowSummaryCards(items){
       <div class="stat-card"><div class="stat-label">Net Cashflow</div><div class="stat-value ${net>=0?'pos':'neg'}">${fmtMoney(net)}</div></div>
     </div>
   `);
+}
+
+function StatementComparisonChart(items, type, project){
+  // Grouped bar chart: Accrued vs Expenses (pnl) / Cash In vs Cash Out (cashflow), month by month.
+  // Mirrors the summary cards above it (same item set, so it respects the month filter too).
+  const wrap = el(`<div></div>`);
+  const dated = items.filter(i => i.period);
+  if(dated.length === 0) return wrap;
+  const byMonth = {};
+  dated.forEach(i => {
+    const m = i.period.slice(0,7);
+    if(!byMonth[m]) byMonth[m] = { plus: 0, minus: 0 };
+    const amt = Number(i.amount);
+    if(amt >= 0) byMonth[m].plus += amt;
+    else byMonth[m].minus += Math.abs(amt);
+  });
+  const months = Object.keys(byMonth).sort();
+  const labels = months.map(m => fmtPeriod(m+'-01'));
+  const plusArr = months.map(m => byMonth[m].plus);
+  const minusArr = months.map(m => byMonth[m].minus);
+  const isPnl = type === 'pnl';
+  const plusLabel = isPnl ? 'Accrued' : 'Cash In';
+  const minusLabel = isPnl ? 'Expenses' : 'Cash Out';
+  const card = el(`
+    <div class="card">
+      <div class="card-title">${plusLabel} vs ${minusLabel} <span style="font-weight:400;font-size:12px;color:var(--grey);">— month by month</span></div>
+      ${chartCanvas(200)}
+    </div>
+  `);
+  wrap.appendChild(card);
+  mountGroupedBarChart(card.querySelector('canvas'), `${isPnl?'pnl':'cf'}-vs-${project ? (project.id || 'p') : 'p'}`,
+    labels, [
+      { label: plusLabel, data: plusArr, backgroundColor: '#6FCF97', borderRadius: 4 },
+      { label: minusLabel, data: minusArr, backgroundColor: '#E2807A', borderRadius: 4 },
+    ]);
+  return wrap;
 }
 
 function StatementTable(items, type){

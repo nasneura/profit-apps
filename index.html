@@ -982,7 +982,7 @@ function closeBudgetItemModal(){
 
 async function updateBudgetAmount(id, amount){
   const val = parseFloat(amount);
-  if(isNaN(val)){ alert('Budget amount must be a number.'); await loadProjectData(state.selectedProjectId); render(); return; }
+  if(isNaN(val)){ alert('Cost amount must be a number.'); await loadProjectData(state.selectedProjectId); render(); return; }
   const { error } = await sb.from('budget_items').update({ budget_amount: val, updated_at: new Date().toISOString() }).eq('id', id);
   if(error){ alert(error.message); return; }
   await loadProjectData(state.selectedProjectId);
@@ -991,7 +991,7 @@ async function updateBudgetAmount(id, amount){
 
 async function saveBudgetItem(id, category, amount){
   if(!category || !category.trim() || isNaN(parseFloat(amount))){
-    alert('Please fill in Category and Budget Amount (number).');
+    alert('Please fill in Category and Cost Amount (number).');
     return;
   }
   const payload = { category: category.trim(), budget_amount: parseFloat(amount), updated_at: new Date().toISOString() };
@@ -1009,8 +1009,8 @@ async function saveBudgetItem(id, category, amount){
 
 function deleteBudgetItem(id, category){
   askConfirm({
-    title: 'Delete budget item?',
-    message: `This will permanently delete the budget line for <strong>${esc(category)}</strong>.`,
+    title: 'Delete cost line?',
+    message: `This will permanently delete the cost line for <strong>${esc(category)}</strong>.`,
     confirmLabel: 'Delete item',
     danger: true,
     onConfirm: async () => {
@@ -1551,7 +1551,7 @@ function SummaryView(items, project){
       <div class="stat-card">
         <div class="stat-label">Open Alerts</div>
         <div class="stat-value" style="color:${alertHex};">${alerts.length === 0 ? 'All clear' : alerts.length}</div>
-        <div style="font-size:10.5px;color:var(--grey);margin-top:5px;">${alerts.length === 0 ? 'No budget, cash, or margin issues detected' : `${criticalCount} critical, ${warningCount} warning — see Alerts tab`}</div>
+        <div style="font-size:10.5px;color:var(--grey);margin-top:5px;">${alerts.length === 0 ? 'No cost, cash, or margin issues detected' : `${criticalCount} critical, ${warningCount} warning — see Alerts tab`}</div>
       </div>
     </div>
   `));
@@ -1708,7 +1708,7 @@ function generateKeyTakeaways({ project, totalCashIn, totalCashOut, netPosition,
     const taxAmount = grossProfit * (Number(project.tax_percent)||0) / 100;
     const netProfit = grossProfit - taxAmount;
     const margin = Number(project.contract_value) > 0 ? (netProfit / Number(project.contract_value) * 100) : 0;
-    takeaways.push(`Against a contract value of ${fmtMoney(project.contract_value)}, projected net profit is ${fmtMoney(netProfit)} (${margin.toFixed(1)}% margin) — see Budget tab for the full breakdown.`);
+    takeaways.push(`Against a contract value of ${fmtMoney(project.contract_value)}, projected net profit is ${fmtMoney(netProfit)} (${margin.toFixed(1)}% margin) — see Project Costing tab for the full breakdown.`);
   }
 
   return takeaways;
@@ -2083,9 +2083,9 @@ function computeAlerts(project, lineItems, budgetItems){
     if(budget <= 0) return;
     const pct = (actual / budget) * 100;
     if(pct > 100){
-      alerts.push({ severity: 'critical', title: `${esc(b.category)} is over budget`, detail: `${fmtMoney(actual)} spent against ${fmtMoney(budget)} budgeted (${pct.toFixed(0)}%).` });
+      alerts.push({ severity: 'critical', title: `${esc(b.category)} is over the cost plan`, detail: `${fmtMoney(actual)} spent against ${fmtMoney(budget)} planned (${pct.toFixed(0)}%).` });
     } else if(pct >= 85){
-      alerts.push({ severity: 'warning', title: `${esc(b.category)} is near budget limit`, detail: `${fmtMoney(actual)} spent against ${fmtMoney(budget)} budgeted (${pct.toFixed(0)}%).` });
+      alerts.push({ severity: 'warning', title: `${esc(b.category)} is near its cost limit`, detail: `${fmtMoney(actual)} spent against ${fmtMoney(budget)} planned (${pct.toFixed(0)}%).` });
     }
   });
 
@@ -2116,7 +2116,7 @@ function computeAlerts(project, lineItems, budgetItems){
     const netProfit = grossProfit - taxAmount;
     const margin = Number(project.contract_value) > 0 ? (netProfit / Number(project.contract_value) * 100) : 0;
     if(margin < 0){
-      alerts.push({ severity: 'critical', title: 'Project margin is negative', detail: `Projected net margin is ${margin.toFixed(1)}% — this project is forecast to lose money at current budget.` });
+      alerts.push({ severity: 'critical', title: 'Project margin is negative', detail: `Projected net margin is ${margin.toFixed(1)}% — this project is forecast to lose money at the current cost plan.` });
     } else if(margin < 10){
       alerts.push({ severity: 'warning', title: 'Project margin is thin', detail: `Projected net margin is only ${margin.toFixed(1)}% — limited buffer for cost overruns.` });
     }
@@ -2129,7 +2129,7 @@ function computeAlerts(project, lineItems, budgetItems){
     const totalActual = budgetItems.reduce((s,b) => s + actualFor(b.category), 0);
     const spendPct = cogsTotal > 0 ? (totalActual / cogsTotal) * 100 : 0;
     if(spendPct - pc > 20){
-      alerts.push({ severity: 'warning', title: 'Spend is ahead of reported progress', detail: `${spendPct.toFixed(0)}% of budget spent, but project is only ${pc}% complete — cost may be running ahead of actual work done.` });
+      alerts.push({ severity: 'warning', title: 'Spend is ahead of reported progress', detail: `${spendPct.toFixed(0)}% of the cost plan spent, but project is only ${pc}% complete — cost may be running ahead of actual work done.` });
     }
   }
 
@@ -2164,8 +2164,8 @@ function BudgetView(project){
 
   const addBar = el(`
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-      <div class="card-title" style="margin:0;">Budget by Category</div>
-      ${isAdmin ? `<button class="btn pill small" id="add-budget-item-btn">+ Add budget line</button>` : ''}
+      <div class="card-title" style="margin:0;">Cost by Category</div>
+      ${isAdmin ? `<button class="btn pill small" id="add-budget-item-btn">+ Add cost line</button>` : ''}
     </div>
   `);
   if(isAdmin) addBar.querySelector('#add-budget-item-btn').addEventListener('click', openAddBudgetItem);
@@ -2174,13 +2174,13 @@ function BudgetView(project){
   budgetCard.appendChild(addBar);
 
   if(budgetItems.length === 0){
-    budgetCard.appendChild(el(`<div class="empty-state" style="padding:30px 0;"><div class="big">No budget lines yet</div><div>${isAdmin ? 'Click "+ Add budget line" to set your estimated cost per category.' : 'Ask an admin to set up the project budget.'}</div></div>`));
+    budgetCard.appendChild(el(`<div class="empty-state" style="padding:30px 0;"><div class="big">No cost lines yet</div><div>${isAdmin ? 'Click "+ Add cost line" to set your estimated cost per category.' : 'Ask an admin to set up the project costing.'}</div></div>`));
   } else {
     const chartWrap = el(chartCanvas(Math.max(160, budgetItems.length * 30)));
     budgetCard.appendChild(chartWrap);
     mountGroupedBarChart(chartWrap.querySelector('canvas'), 'budget-vs-actual-'+project.id,
       budgetItems.map(b => b.category), [
-        { label: 'Budget', data: budgetItems.map(b => Number(b.budget_amount)), backgroundColor: '#5266EB', borderRadius: 4 },
+        { label: 'Cost', data: budgetItems.map(b => Number(b.budget_amount)), backgroundColor: '#5266EB', borderRadius: 4 },
         { label: 'Actual', data: budgetItems.map(b => actualFor(b.category)), backgroundColor: '#6FCF97', borderRadius: 4 },
       ]
     );
@@ -2214,7 +2214,7 @@ function BudgetView(project){
     }).join('');
     const table = el(`
       <table class="ledger">
-        <thead><tr><th>Category</th><th class="num">Budget</th><th class="num">Actual</th><th>Usage</th><th class="num">Variance</th>${isAdmin ? '<th></th>' : ''}</tr></thead>
+        <thead><tr><th>Category</th><th class="num">Cost</th><th class="num">Actual</th><th>Usage</th><th class="num">Variance</th>${isAdmin ? '<th></th>' : ''}</tr></thead>
         <tbody>
           ${rowsHtml}
           <tr class="group-row"><td class="cat">Subtotal — COGS <span style="font-weight:400;font-size:11px;color:var(--grey);">(Cost of Goods Sold)</span></td><td class="num">${fmtMoney(cogsTotal)}</td><td></td><td></td><td></td>${isAdmin?'<td></td>':''}</tr>
@@ -2274,6 +2274,8 @@ function BudgetView(project){
         </tbody>
       </table>
     </div>
+  `));
+  wrap.appendChild(el(`
     <div class="card">
       <div class="card-title">Profitability</div>
       <table class="ledger">
@@ -2297,7 +2299,7 @@ function PerformanceView(project){
   const pc = Math.max(0, Math.min(100, Number(project.percent_complete) || 0));
 
   if(budgetItems.length === 0){
-    wrap.appendChild(el(`<div class="empty-state"><div class="big">No budget set up yet</div><div>Add budget lines in the Budget tab first — Performance Analysis needs a budget baseline to compare against.</div></div>`));
+    wrap.appendChild(el(`<div class="empty-state"><div class="big">No cost set up yet</div><div>Add cost lines in the Project Costing tab first — Performance Analysis needs a cost baseline to compare against.</div></div>`));
     return wrap;
   }
 
@@ -2854,7 +2856,7 @@ function AlertsView(project){
     wrap.appendChild(el(`
       <div class="card">
         <div style="font-size:14px; font-weight:600; margin-bottom:4px;">No issues detected</div>
-        <div style="font-size:13px; color:var(--grey);">PROFIT checks budget limits, cash balance, margin, and spend pace automatically — nothing flagged right now.</div>
+        <div style="font-size:13px; color:var(--grey);">PROFIT checks cost limits, cash balance, margin, and spend pace automatically — nothing flagged right now.</div>
       </div>
     `));
     return wrap;
@@ -3914,7 +3916,7 @@ function BudgetItemModal(){
   const overlay = el(`
     <div class="modal-overlay">
       <div class="modal">
-        <h3 class="modal-title">${isEdit ? 'Edit' : 'Add'} budget line</h3>
+        <h3 class="modal-title">${isEdit ? 'Edit' : 'Add'} cost line</h3>
         <form id="bi-form">
           <div class="field">
             <label>Category (required)</label>
@@ -3924,7 +3926,7 @@ function BudgetItemModal(){
             </select>
             <input type="text" name="category" id="bi-category-input" value="${esc(d.category)}" placeholder="e.g. Equipment & Hardware" required>
           </div>
-          <div class="field"><label>Budget amount (RM)</label><input type="number" step="0.01" name="budget_amount" value="${d.budget_amount}" placeholder="e.g. 81193.20" required></div>
+          <div class="field"><label>Cost amount (RM)</label><input type="number" step="0.01" name="budget_amount" value="${d.budget_amount}" placeholder="e.g. 81193.20" required></div>
           <div class="modal-actions">
             <button type="button" class="btn pill secondary" id="bi-cancel">Cancel</button>
             <button type="submit" class="btn pill">${isEdit ? 'Save' : 'Add'}</button>

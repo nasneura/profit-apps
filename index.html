@@ -1882,7 +1882,8 @@ function CashflowSummaryCards(items){
 }
 
 function StatementComparisonChart(items, type, project){
-  // Grouped bar chart: Accrued vs Expenses (pnl) / Cash In vs Cash Out (cashflow), month by month.
+  // Accrued vs Expenses (pnl) / Cash In vs Cash Out (cashflow), month by month.
+  // Grid view = full timeline → line graph (trend); List view = month filter → bar graph (compare values).
   // Mirrors the summary cards above it (same item set, so it respects the month filter too).
   const wrap = el(`<div></div>`);
   const dated = items.filter(i => i.period);
@@ -1909,11 +1910,18 @@ function StatementComparisonChart(items, type, project){
     </div>
   `);
   wrap.appendChild(card);
-  mountGroupedBarChart(card.querySelector('canvas'), `${isPnl?'pnl':'cf'}-vs-${project ? (project.id || 'p') : 'p'}`,
-    labels, [
+  const chartId = `${isPnl?'pnl':'cf'}-vs-${project ? (project.id || 'p') : 'p'}`;
+  if(state.viewMode === 'grid'){
+    mountMultiLineChart(card.querySelector('canvas'), chartId, labels, [
+      { label: plusLabel, data: plusArr, color: '#6FCF97', fill: true },
+      { label: minusLabel, data: minusArr, color: '#E2807A', fill: false },
+    ]);
+  } else {
+    mountGroupedBarChart(card.querySelector('canvas'), chartId, labels, [
       { label: plusLabel, data: plusArr, backgroundColor: '#6FCF97', borderRadius: 4 },
       { label: minusLabel, data: minusArr, backgroundColor: '#E2807A', borderRadius: 4 },
     ]);
+  }
   return wrap;
 }
 

@@ -163,6 +163,34 @@
   table.ledger tr.total-row td.cat{ font-family:'Lexend',sans-serif; }
   .amt-pos{ color:var(--teal); }
   .amt-neg{ color:var(--rust); }
+
+  /* Month-grouped list (accordion) — PnL & Cashflow list view */
+  .month-group{ background:var(--panel); border-radius:12px; margin-bottom:8px; overflow:hidden; }
+  .month-head{ display:flex; align-items:center; gap:10px; padding:12px 14px; cursor:pointer; user-select:none; -webkit-user-select:none; flex-wrap:wrap; }
+  .month-head:hover{ background:var(--panel-alt); }
+  .month-chev{ width:16px; height:16px; flex-shrink:0; color:var(--grey); transition:transform .18s ease; }
+  .month-group.open .month-chev{ transform:rotate(90deg); color:var(--teal); }
+  .month-name{ font-family:'Lexend',sans-serif; font-size:13.5px; font-weight:600; }
+  .month-info{ margin-left:auto; text-align:right; }
+  .month-net{ font-family:'Lexend',sans-serif; font-variant-numeric:tabular-nums; font-size:13px; font-weight:600; }
+  .month-net.pos{ color:var(--teal); }
+  .month-net.neg{ color:var(--rust); }
+  .month-meta{ font-size:10px; color:var(--grey); margin-top:1px; }
+  .month-body{ display:none; border-top:1px solid var(--line); }
+  .month-group.open .month-body{ display:block; }
+  .month-sec-label{ font-size:9.5px; letter-spacing:0.08em; color:var(--grey); text-transform:uppercase; padding:10px 14px 4px; }
+  .month-item{ display:flex; align-items:center; gap:10px; padding:6px 14px; }
+  .month-item:hover{ background:var(--paper-dim); }
+  .month-item .cat{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12.5px; }
+  .month-item .amt{ font-family:'Lexend',sans-serif; font-variant-numeric:tabular-nums; font-size:12.5px; font-weight:500; white-space:nowrap; }
+  .month-item .row-act{ display:flex; gap:5px; }
+  .month-item .row-act button{ border:none; border-radius:999px; padding:3px 9px; font-family:'Lexend',sans-serif; font-size:10px; cursor:pointer; background:var(--panel-alt); color:var(--grey); }
+  .month-item .row-act button.del{ color:var(--rust); }
+  .month-total{ display:flex; justify-content:flex-end; gap:8px; align-items:center; padding:9px 14px; border-top:1px dashed rgba(255,255,255,0.12); font-size:11px; color:var(--grey); }
+  .month-total b{ font-family:'Lexend',sans-serif; font-variant-numeric:tabular-nums; font-size:12.5px; }
+  .list-grand-total{ display:flex; justify-content:space-between; align-items:center; background:var(--paper-dim); border:1px solid var(--line); border-radius:12px; padding:12px 16px; margin-top:4px; }
+  .list-grand-total .lbl{ font-size:12px; color:var(--grey); }
+  .list-grand-total .val{ font-family:'Lexend',sans-serif; font-variant-numeric:tabular-nums; font-size:15px; font-weight:700; }
   .grid-cell-input{
     width:100%; text-align:right; font-family:'Lexend',sans-serif; font-variant-numeric:tabular-nums; font-size:12.5px;
     border:1px solid transparent; background:transparent; padding:3px 4px; border-radius:3px; color:inherit;
@@ -270,6 +298,7 @@ let state = {
   lineItemModalData: { id: null, category: '', subcategory: '', amount: '', period: '', status: 'actual' },
   periodFilter: 'all',
   viewMode: 'grid',
+  openMonths: {}, // month-grouped list: which months are expanded (key = `${type}:${YYYY-MM}`)
   confirmDialog: { show: false, title: '', message: '', confirmLabel: 'Confirm', danger: true, onConfirm: null },
   showQuickFillModal: false,
   quickFillType: 'pnl',
@@ -1927,9 +1956,10 @@ function StatementComparisonChart(items, type, project){
 
 function StatementTable(items, type){
   const wrap = el(`<div></div>`);
+  const isPnl = type === 'pnl';
 
   const addBar = el(`
-    <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;">
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
       <button class="btn pill small secondary" id="quick-edit-btn">Quick edit months</button>
       <button class="btn pill small secondary" id="quick-fill-btn">+ Quick fill months</button>
       <button class="btn pill small" id="add-line-item-btn">+ Add line item</button>
@@ -1941,71 +1971,104 @@ function StatementTable(items, type){
   wrap.appendChild(addBar);
 
   if(items.length === 0){
-    wrap.appendChild(el(`<div class="empty-state"><div class="big">No ${type==='pnl'?'PnL':'Cashflow'} data</div><div>Click "+ Add line item" or upload a file to get started.</div></div>`));
+    wrap.appendChild(el(`<div class="empty-state"><div class="big">No ${isPnl?'PnL':'Cashflow'} data</div><div>Click "+ Add line item" or upload a file to get started.</div></div>`));
     return wrap;
   }
-  const groups = {};
+
+  // Group by month (undated items go to their own group at the bottom)
+  const byMonth = {};
   items.forEach(i => {
-    const key = i.category;
-    if(!groups[key]) groups[key] = [];
-    groups[key].push(i);
+    const m = i.period ? i.period.slice(0,7) : '__none__';
+    if(!byMonth[m]) byMonth[m] = [];
+    byMonth[m].push(i);
   });
-  const groupEntries = Object.entries(groups).map(([cat, rows]) => {
-    const sortedRows = [...rows].sort((a, b) => {
-      if(!a.period && !b.period) return 0;
-      if(!a.period) return 1;
-      if(!b.period) return -1;
-      return a.period.localeCompare(b.period);
-    });
-    return [cat, rows.reduce((s,i)=>s+Number(i.amount),0), sortedRows];
-  });
-  sortCategoriesLogically(groupEntries, 1);
-  const grandTotal = items.reduce((s,i)=>s+Number(i.amount),0);
+  const monthEntries = Object.keys(byMonth).filter(m => m !== '__none__').sort().map(m => [m, byMonth[m]]);
+  if(byMonth['__none__']) monthEntries.push(['__none__', byMonth['__none__']]);
 
-  let rowsHtml = '';
-  let stripeMonthKey = null;
-  let stripeOn = false;
-  groupEntries.forEach(([cat, subtotal, rows]) => {
-    rowsHtml += `<tr class="group-row"><td class="cat" colspan="2">${esc(cat)}</td><td></td><td class="num">${fmtMoney(subtotal)}</td><td></td></tr>`;
-    rows.forEach(r => {
-      const monthKey = r.period || '__none__';
-      if(monthKey !== stripeMonthKey){ stripeOn = !stripeOn; stripeMonthKey = monthKey; }
-      rowsHtml += `<tr ${stripeOn ? 'style="background:var(--stripe);"' : ''}>
-        <td></td>
-        <td class="cat">${esc(r.subcategory || '—')} ${r.status==='forecast' ? '<span class="pill forecast">Forecast</span>' : ''}</td>
-        <td style="font-size:12px;color:var(--grey);">${fmtPeriod(r.period)}</td>
-        <td class="num ${r.amount>=0?'amt-pos':'amt-neg'}">${fmtMoney(r.amount)}</td>
-        <td style="white-space:nowrap;">
-          <button class="btn pill small secondary row-edit" data-id="${r.id}" style="padding:3px 8px;font-size:11px;">Edit</button>
-          <button class="btn pill small secondary row-delete" data-id="${r.id}" style="padding:3px 8px;font-size:11px;">Delete</button>
-        </td>
-      </tr>`;
-    });
-  });
-  rowsHtml += `<tr class="total-row"><td class="cat" colspan="2">Grand total</td><td></td><td class="num ${grandTotal>=0?'amt-pos':'amt-neg'}">${fmtMoney(grandTotal)}</td><td></td></tr>`;
+  const plusLabel = isPnl ? 'Accrued' : 'Cash In';
+  const minusLabel = isPnl ? 'Expenses' : 'Cash Out';
 
-  const card = el(`
-    <div class="card">
-      <table class="ledger">
-        <thead><tr><th style="width:24px;"></th><th>Subcategory</th><th>Month</th><th class="num">Amount</th><th style="width:120px;"></th></tr></thead>
-        <tbody>${rowsHtml}</tbody>
-      </table>
+  let groupsHtml = '';
+  monthEntries.forEach(([m, rows]) => {
+    const isNone = m === '__none__';
+    let plus = 0, minus = 0, net = 0;
+    rows.forEach(i => {
+      const amt = Number(i.amount);
+      net += amt;
+      if(amt >= 0) plus += amt; else minus += Math.abs(amt);
+    });
+    const hasForecast = rows.some(i => i.status === 'forecast');
+    const key = type + ':' + m;
+    const isOpen = !!state.openMonths[key];
+    const plusRows = rows.filter(i => Number(i.amount) >= 0);
+    const minusRows = rows.filter(i => Number(i.amount) < 0)
+      .sort((a, b) => Math.abs(Number(b.amount)) - Math.abs(Number(a.amount)));
+
+    const section = (label, rws) => rws.length === 0 ? '' : `
+      <div class="month-sec-label">${label}</div>
+      ${rws.map(r => `
+        <div class="month-item">
+          <span class="cat">${esc(r.subcategory || r.category)} ${r.status==='forecast' ? '<span class="pill forecast">Forecast</span>' : ''}</span>
+          <span class="amt ${r.amount>=0?'amt-pos':'amt-neg'}">${fmtMoney(r.amount)}</span>
+          <span class="row-act">
+            <button class="row-edit" data-id="${r.id}">Edit</button>
+            <button class="row-delete del" data-id="${r.id}">Delete</button>
+          </span>
+        </div>
+      `).join('')}`;
+
+    const headLabel = isNone ? 'No month set' : fmtPeriod(m + '-01');
+    groupsHtml += `
+      <div class="month-group ${isOpen?'open':''}">
+        <div class="month-head" data-month-key="${key}">
+          <svg class="month-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <span class="month-name">${headLabel} ${hasForecast && !isNone ? '<span class="pill forecast">Forecast</span>' : ''} ${isNone ? `<span class="pill forecast" style="background:rgba(226,128,122,0.14); color:#E9A39D;">${rows.length} item${rows.length!==1?'s':''}</span>` : ''}</span>
+          <span class="month-info">
+            <div class="month-net ${net>=0?'pos':'neg'}">Net ${fmtMoney(net)}</div>
+            <div class="month-meta">${isNone ? 'No Month set — not included in timeline' : `${rows.length} item${rows.length!==1?'s':''} · ${plusLabel} ${fmtMoney(plus)} · ${minusLabel} ${fmtMoney(minus)}`}</div>
+          </span>
+        </div>
+        <div class="month-body">
+          ${section(plusLabel, plusRows)}
+          ${section(minusLabel, minusRows)}
+          ${isNone ? '' : `<div class="month-total">Month net <b class="${net>=0?'amt-pos':'amt-neg'}">${fmtMoney(net)}</b></div>`}
+        </div>
+      </div>`;
+  });
+
+  const grandTotal = items.reduce((s,i) => s + Number(i.amount), 0);
+  const wrapper = el(`
+    <div>
+      ${groupsHtml}
+      <div class="list-grand-total">
+        <span class="lbl">Grand total</span>
+        <span class="val ${grandTotal>=0?'amt-pos':'amt-neg'}">${fmtMoney(grandTotal)}</span>
+      </div>
     </div>
   `);
-  card.querySelectorAll('.row-edit').forEach(btn => {
-    btn.addEventListener('click', () => {
+  wrapper.querySelectorAll('.month-head').forEach(head => {
+    head.addEventListener('click', () => {
+      const key = head.dataset.monthKey;
+      if(state.openMonths[key]) delete state.openMonths[key]; else state.openMonths[key] = true;
+      head.parentElement.classList.toggle('open');
+    });
+  });
+  wrapper.querySelectorAll('.row-edit').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
       const item = state.lineItems.find(i => i.id === btn.dataset.id);
       if(item) openEditLineItem(item);
     });
   });
-  card.querySelectorAll('.row-delete').forEach(btn => {
-    btn.addEventListener('click', () => {
+  wrapper.querySelectorAll('.row-delete').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
       const item = state.lineItems.find(i => i.id === btn.dataset.id);
       const label = item ? `${esc(item.category)}${item.subcategory ? ' — ' + esc(item.subcategory) : ''} (${fmtMoney(item.amount)})` : null;
       deleteLineItem(btn.dataset.id, label);
     });
   });
-  wrap.appendChild(card);
+  wrap.appendChild(wrapper);
   return wrap;
 }
 
